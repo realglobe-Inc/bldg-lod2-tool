@@ -3,3 +3,23 @@
 ################################################################################
 
 /.vs
+
+# ビルド
+__pycache__
+*egg-info
+
+# 環境変数設定
+/bldg-lod2-tool
+/tools/Atlas_Prot/Atlas_Prot
+/tools/SuperResolution/SuperResolution
+
+# 入力・出力ファイル
+/src/createmodel/data
+/tools/Atlas_Prot/input
+/tools/Atlas_Prot/output
+/tools/SuperResolution/RoofSurface/checkpoint
+/tools/SuperResolution/RoofSurface/data
+/tools/SuperResolution/RoofSurface/output
+/tools/SuperResolution/WallSurface/checkpoint
+/tools/SuperResolution/WallSurface/data
+/tools/SuperResolution/WallSurface/output

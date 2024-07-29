@@ -1,10 +1,11 @@
 {
   "FilePath": {
-    "InputGMLFolderPath": "D:\\atlas\\input",
-    "OutputGMLFolderPath": "D:\\atlas\\output"
+    "InputGMLFolderPath": "./input",
+    "OutputGMLFolderPath": "./output"
   },
   "OutputWidth": 2048,
   "OutputHeight": 2048,
   "BackGroundColor": 255,
   "Extentpixel": 1
 }
+

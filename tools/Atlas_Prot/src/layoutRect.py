@@ -4,6 +4,7 @@ import lxml
 from lxml import etree
 import numpy as np
 import shutil
+import os
 
 from .util.cvsupportjp import Cv2Japanese
 from .util.config import Config
@@ -71,7 +72,7 @@ class LayoutTexture():
                 # 指定棟数ごとに処理
                 if ((self.output_w == build.img_w) and (self.output_h == build.img_h)) or ((self.output_w < build.img_w) or (self.output_h < build.img_h)):
                     # 入力画像サイズが出力画像サイズより大きい場合、アトラス化対象外とする
-                    shutil.copyfile(self.inputpath + "\\" + build.in_imgpath, self.outputpath + "\\" + build.in_imgpath)
+                    shutil.copyfile(os.path.join(self.inputpath, build.in_imgpath), os.path.join(self.outputpath, build.in_imgpath))
                     build.out_imgpath = build.in_imgpath
                     build.out_img_w = build.img_w
                     build.out_img_h = build.img_h
@@ -142,8 +143,7 @@ class LayoutTexture():
                         out_path = build.in_imgpath  # 先頭画像のパスを使用
 
                 # オリジナル画像のオープン
-                img = Cv2Japanese.imread(
-                    self.inputpath + "\\" + build.in_imgpath)
+                img = Cv2Japanese.imread(os.path.join(self.inputpath, build.in_imgpath))
 
                 build.out_imgpath = out_path
                 build.out_img_w = out_w
@@ -218,8 +218,7 @@ class LayoutTexture():
                         # 画像出力
                         # cv2.imwrite(self.outputpath + "\\"
                         #                 z  + build.out_imgpath, output)
-                        Cv2Japanese.imwrite(self.outputpath
-                                            + "\\" + build.out_imgpath, output)
+                        Cv2Japanese.imwrite(os.path.join(self.outputpath, build.out_imgpath), output)
                         # 初期化
                         setCount += self.newRangeList[setRange]
                         setRange += 1
@@ -593,3 +592,4 @@ class LayoutTexture():
             self.w = 0		    # 矩形幅
             self.h = 0		    # 矩形高さ
             self.flag = False   # 配置フラグ
+

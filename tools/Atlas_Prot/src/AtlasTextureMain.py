@@ -115,7 +115,7 @@ class CityGmlManager():
         for gml_file in tqdm(self.citygml_namelist, desc='loading gml files'):
             # print(self.inputpath + "\\" + gml_file + ".gml")
 
-            plbld = plapy.plbldg(self.inputpath + "\\" + gml_file + ".gml")
+            plbld = plapy.plbldg(os.path.join(self.inputpath, gml_file + ".gml"))
             mesh_list = list()
 
             for bldg in plbld.buildings:
@@ -143,14 +143,11 @@ class CityGmlManager():
             citygmlInfo = CityGmlInfo()
             self.citygml_infoList.append(citygmlInfo)
 
-            citygmlInfo.in_cityGmlName = (
-                self.inputpath + "\\" + gml_file + ".gml")
-            citygmlInfo.out_cityGmlName = (
-                self.outputpath + "\\" + gml_file + ".gml")
+            citygmlInfo.in_cityGmlName = (os.path.join(self.inputpath, gml_file + ".gml"))
+            citygmlInfo.out_cityGmlName = (os.path.join(self.outputpath, gml_file + ".gml"))
 
             parser = etree.XMLParser(remove_blank_text=True)
-            tree = etree.parse(
-                self.inputpath + "\\" + gml_file + ".gml", parser)
+            tree = etree.parse(os.path.join(self.inputpath, gml_file + ".gml"), parser)
             root = tree.getroot()
             self._nsmap = self.removeNoneKeyFromDic(root.nsmap)
 
@@ -447,4 +444,5 @@ class SetyMesh():
         """
         self.ids = list()
         self.code = 0
+
 

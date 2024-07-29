@@ -1,12 +1,19 @@
 clip==0.2.0
 lightning==1.9.5
-mmedit==1.0.0rc5
+mmedit==1.0.0rc7
 mmengine==0.10.1
 networkx==2.6.3
 numpy==1.21.5
-opencv-python==4.5.4.60
+opencv-python==4.6.0.66
 openmim==0.3.6
-Pillow==9.0.1
+Pillow==9.3.0
 PyYAML==6.0
 tqdm==4.63.0
+
 mmcv==2.0.0rc4
+-f https://download.openmmlab.com/mmcv/dist/cu113/torch1.12/index.html
+
+torch==1.12.1+cu113
+torchvision==0.13.1+cu113
+-f https://download.pytorch.org/whl/torch_stable.html
+
