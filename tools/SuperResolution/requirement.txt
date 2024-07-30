@@ -9,6 +9,7 @@ openmim==0.3.6
 Pillow==9.3.0
 PyYAML==6.0
 tqdm==4.63.0
+transformers==4.43.3
 
 mmcv==2.0.0rc4
 -f https://download.openmmlab.com/mmcv/dist/cu113/torch1.12/index.html
