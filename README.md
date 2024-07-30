@@ -5,9 +5,6 @@
 
 ## 1. 概要
 
-LOD2建築物モデル自動作成ツール（以下、「本ツール」）は、国土交通省が進めるProject PLATEAUの一環として令和4年度に開発されました。  
-本ツールは、DSM点群や建物外形データ等を入力データとしてLOD2建築物モデルの作成を自動的に行い、CityGML 形式で出力するシステムです。
-
 ## 2. 「LOD2建築物モデル自動作成ツール」について
 
 「LOD2建築物モデル自動作成ツールv1.0」は2022年度のProject PLATEAUにおいて開発されました。  
@@ -37,8 +34,16 @@ https://www.mlit.go.jp/plateau/file/libraries/doc/plateau_tech_doc_0062_ver01.pd
 https://www.mlit.go.jp/plateau/file/libraries/doc/plateau_tech_doc_0056_ver01.pdf
 
 
-## 3. 利用手順
+## 3. 利用手順(要修正)
 
+### git クローン
+```
+git clone --recurse-submodules https://github.com/realglobe-Inc/bldg-lod2-tool
+```
+
+### [AWS EC2 Ubuntu 20.04 での環境構築のガイド](./docs/tutorials/setup-linux/README.md)
+
+### Windows での環境構築のガイド
 本ツールの構築手順及び利用手順については[利用チュートリアル](https://project-plateau.github.io/Auto-Create-bldg-lod2-tool/)を参照してください。
 
 <ツールの利用順>
@@ -114,7 +119,7 @@ https://www.mlit.go.jp/plateau/file/libraries/doc/plateau_tech_doc_0056_ver01.pd
 
 | 項目               | 最小動作環境               | 推奨動作環境                   |
 | ------------------ | ------------------------- | ------------------------------ |
-| OS                 | Microsoft Windows 10 または 11 | 同左 |
+| OS                 | Microsoft Windows 10 または 11 または Linux | 同左 |
 | CPU                | Intel Core i5以上 | Intel Core i7以上 |
 | メモリ             | 8GB以上 | 16GB以上 |
 | GPU                | NVIDIA Quadro P620以上 | NVIDIA RTX 2080以上 |
