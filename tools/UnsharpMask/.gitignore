@@ -1,0 +1,10 @@
+__pycache__
+
+
+/UnsharpMask
+
+
+/input/*
+!/input/.keep
+/output/*
+!/output/.keep

@@ -33,6 +33,9 @@ alias activate='source "$PWD/$(basename $PWD)/bin/activate"'
 # requirements.txt のあるフォルダーに移動して実行
 # ./                       : LOD2建築物モデル自動作成ツール
 # ./tools/SuperResolution  : 屋根面視認性向上ツールと壁面視認性向上ツール
+# ./tools/DeblurGANv2      : 画質向上ツール
+# ./tools/UnsharpMask      : 画質のエッジシャープ化ツール
+# ./tools/Real-ESRGAN      : 解像度向上ツール
 # ./tools/Atlas_Prot       : アトラス化ツール
 create_env
 ```
@@ -205,6 +208,23 @@ wget -O checkpoints/fpn_inception.h5 'https://docs.google.com/uc?export=download
 ```
 python3 predict.py param.json
 ```
+
+
+
+## 画質のエッジシャープ化ツール
+
+### プロジェクト内相対パスへ移動 : ./tools/UnsharpMask
+
+### 依存ライブラリのインストール
+```
+pip install –r requirements.txt # 仮想環境の開始後
+```
+
+### 画質のエッジシャープ化ツール実行
+```
+python3 UnsharpMask.py param.json
+```
+
 
 
 ## 解像度向上ツール
