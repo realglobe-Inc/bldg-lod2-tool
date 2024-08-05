@@ -2,6 +2,8 @@ import os
 import lxml
 import shutil
 import glob
+import numpy as np
+
 from ..thirdparty import plateaupy as plapy
 from .coordinateconverter import CoordinateConverter
 from .coordinateconverter import CoordinateConverterException
@@ -31,7 +33,7 @@ class CityGmlManager:
                            BldElementType.WALL: ["WallSurface", "wall_"],
                            BldElementType.GROUND: ["GroundSurface", "ground_"]}
 
-    def read_file(self, file_name: str):
+    def read_file(self, file_name: str, target_geo_area):
         """CityGMLファイル読み込み
 
         Args:
@@ -85,7 +87,31 @@ class CityGmlManager:
                                          'Outline not found ' + bldg.id)
                     restype = ResultType.WARN
 
-                self.citygml_info.append(binfo)
+                if target_geo_area:
+                    # 緯度（latitude）の最小値と最大値を取得
+                    target_geo_area_lat_min = target_geo_area[0][0]
+                    target_geo_area_lat_max = target_geo_area[1][0]
+
+                    # 経度（longitude）の最小値と最大値を取得
+                    target_geo_area_lon_min = target_geo_area[0][1]
+                    target_geo_area_lon_max = target_geo_area[1][1]
+
+                    # 緯度（latitude）の最小値と最大値を取得
+                    binfo_lat_min = np.min(binfo.lod0_poslist[:, 0])
+                    binfo_lat_max = np.max(binfo.lod0_poslist[:, 0])
+
+                    # 経度（longitude）の最小値と最大値を取得
+                    binfo_lon_min = np.min(binfo.lod0_poslist[:, 1])
+                    binfo_lon_max = np.max(binfo.lod0_poslist[:, 1])
+
+                    if (target_geo_area_lat_min <= binfo_lat_min <= target_geo_area_lat_max and
+                        target_geo_area_lat_min <= binfo_lat_max <= target_geo_area_lat_max and
+                        target_geo_area_lon_min <= binfo_lon_min <= target_geo_area_lon_max and
+                        target_geo_area_lon_min <= binfo_lon_max <= target_geo_area_lon_max):
+
+                        self.citygml_info.append(binfo)
+                else:
+                    self.citygml_info.append(binfo)
 
             if len(self.citygml_info) == not_found_outline_num:
                 raise Exception('All outline not found')

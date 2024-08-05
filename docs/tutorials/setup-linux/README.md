@@ -80,6 +80,68 @@ wget https://drive.google.com/file/d/1MINHffIvcooDOrQq3E4mBvdsgWUfzIi5/view?usp=
 mv roof_edge_detection_parameter.pth src/createmodel/data/
 ```
 
+### LOD2建築物モデル自動作成のテスト用の入力データーのダウンロード
+- [ブラウザからダウンロード(ファイル大きいから wget 不可)](https://drive.google.com/file/d/1UnxBL2MrDZaQ5EF44TXCFc-ZnVbp9Gf6/view)
+- scp でインスタンスに転送
+```
+scp ~/Download/Auto-Create-bldg-lod2-tool-tutorial.zip ubuntu@xxx.xxx.xxx.xxx:~/
+```
+- インスタンス内部で圧縮解除
+```
+mkdir -p ~/Auto-Create-bldg-lod2-tool-tutorial
+unzip ~/Auto-Create-bldg-lod2-tool-tutorial.zip -d ~/Auto-Create-bldg-lod2-tool-tutorial
+```
+
+### LOD2建築物モデル自動作成パラメーター
+param.json
+```
+{
+  "LasCoordinateSystem": 9,
+  "DsmFolderPath": "/home/ubuntu/AutoCreateLod2_tutorial/LOD2Creator_tutorial/dataset/DSM",
+  "LasSwapXY": false,
+  "CityGMLFolderPath": "/home/ubuntu/AutoCreateLod2_tutorial/LOD2Creator_tutorial/dataset/CityGML",
+  "TextureFolderPath": "/home/ubuntu/AutoCreateLod2_tutorial/LOD2Creator_tutorial/dataset/RawImage",
+  "RotateMatrixMode": 0,
+  "ExternalCalibElementPath": "/home/ubuntu/AutoCreateLod2_tutorial/LOD2Creator_tutorial/dataset/ExCalib/ExCalib.txt",
+  "CameraInfoPath": "/home/ubuntu/AutoCreateLod2_tutorial/LOD2Creator_tutorial/dataset/CamInfo/CamInfo.txt",
+  "OutputFolderPath": "/home/ubuntu/AutoCreateLod2_tutorial/output",
+  "OutputOBJ": false,
+  "OutputTexture": true,
+  "OutputLogFolderPath": "/home/ubuntu/AutoCreateLod2_tutorial/output",
+  "DebugLogOutput": false,
+  "PhaseConsistency": {
+    "DeleteErrorObject": true,
+    "NonPlaneThickness": 0.05,
+    "NonPlaneAngle": 15
+  },
+  "TargetGeoArea" : [[35, 139], [36, 140]]
+}
+```
+
+#### 必須パラメーター
+| No |	キー名 |	値形式 | 説明 |
+| -- | -- | -- | -- | 
+|1|	LasCoordinateSystem| 数値	|航空写真DSM点群の平面直角座標系の番号です。1～19の数値にて指定します。未記入および1～19以外の値が入力された場合は無効とし、エラーメッセージを表示し、処理を中止します。
+|2|	DsmFolderPath| 文字列 |航空写真DSM点群のフォルダパスを指定します。指定されたフォルダパスが存在しない場合は無効とし、エラーメッセージを表示し、処理を中止します。
+|3|	LasSwapXY | 真偽値 |	LASファイルのXY座標を入れ替えて使用するか否かを切り替えるフラグです。設定値がtrueの場合は、LASファイルのXY座標を入れ替えます。システム内部座標系が、xが東方向、yが北方向の値のため、LASファイル座標系が同一座標系となるようにユーザーがフラグを切り替える必要があります。未記入、または、真偽値以外の値が入力された場合は、エラーメッセージを表示し、処理を中止します。
+|4|	CityGMLFolderPath	| 文字列 | 入力CityGMLフォルダパスを指定します。未記入および指定されたフォルダが存在しない場合、フォルダ内にCityGMLファイルがない場合は無効とし、エラーメッセージを表示し、処理を中止します。
+|5| TextureFolderPath	| 文字列 | 航空写真（原画像）の格納フォルダパスです。未記入および指定されたファイルが存在しない場合は無効とし、警告メッセージを表示し、テクスチャ貼付け処理を実施しません。
+|6|	ExternalCalibElementPath | 文字列 |	外部標定パラメータのファイルパスです。未記入および指定されたファイルが存在しない場合は無効とし、警告メッセージを表示し、テクスチャ貼付け処理を実施しません。
+|7|	RotateMatrixMode | 整数値 | テクスチャ貼付け処理において、ワールド座標からカメラ座標に変換する際に使用する回転行列Rの種類を切り替える設定値です。<br />モードの種類は以下2種類とします。<br />0:R=R_x (ω) R_y (ϕ) R_z (κ)<br />1:R=R_z (κ)R_y (ϕ)R_x (ω)<br/>未記入、または、0,1以外の値が入力された場合は、エラーメッセージを表示し、処理を中止します。
+|8|	CameraInfoPath | 文字列 |	内部標定パラメータのファイルパスです。未記入および指定されたファイルが存在しない場合は無効とし、警告メッセージを表示し、テクスチャ貼付け処理を実施しません。
+|9|	OutputFolderPath | 文字列 | 生成モデルの出力先フォルダパスです。指定されたフォルダ内に出力フォルダを作成し、作成したフォルダ内にCityGMLファイルとテクスチャ情報を出力します。テクスチャ情報は、入力CityGMLファイル名称(拡張子は除く)_appearanceフォルダに格納されます。
+|10| OutputOBJ | 真偽値 | 生成モデルをCityGMLファイルとは別にOBJファイルとして出力するか否かを設定するフラグです。trueまたはfalseで値を指定します。未記入または、真偽値以外の値が入力された場合はエラーメッセージを表示し、処理を中止します。
+|11| OutputTexture | 真偽値 | CityGMLファイルにテクスチャー情報を出力するか否かを設定するフラグです。trueまたはfalseで値を指定します。未記入の場合はtrueとなります。
+|12| OutputLogFolderPath | 文字列 | ログのフォルダパスです。未記入または、存在しない場合は、本システムのPythonコードと同階層のログフォルダ“output_log”にログファイルを作成し、処理を中止します。
+|13| DebugLogOutput | 真偽値 | デバッグレベルのログを出力するかどうかのフラグです。trueまたはfalseで値を指定します。未記入または、真偽値以外の値が入力された場合は、エラーメッセージを表示し、処理を中止します。
+|14| PhaseConsistency	| 辞書 |	位相一貫性検査/補正処理用パラメータです。項目は位相一貫性検査/補正用設定パラメータ一覧を参照してください。
+
+#### 選択パラメーター
+| No |	キー名 |	値形式 | 説明 |
+| -- | -- | -- | -- | 
+|1| TargetGeoArea | `Array<Array<number>>` | 緯度経度の領域を指定して建築物の対象を絞ります。入力しない場合、全ての建築物を対象とします
+
+
 ### LOD2建築物モデル自動作成開始
 ```
 python3 AutoCreateLod2.py param.json

@@ -93,7 +93,7 @@ def main():
             citygml = CityGmlManager(param_manager)
             # CityGML読み込み
             ret_citygml_read, buildings = citygml.read_file(
-                file_name=file_name)
+                file_name=file_name, target_geo_area=param_manager.target_geo_area)
 
             log.module_result_log(
                 ModuleType.INPUT_CITYGML, ret_citygml_read)

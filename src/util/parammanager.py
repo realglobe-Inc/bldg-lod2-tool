@@ -71,6 +71,7 @@ class ParamManager:
     KEY_DELETE_ERROR_OBJECT = 'DeleteErrorObject'
     KEY_NON_PLANE_THICKNESS = 'NonPlaneThickness'
     KEY_NON_PLANE_ANGLE = 'NonPlaneAngle'
+    KEY_TARGET_GEO_AREA = 'TargetGeoArea'
 
     # jsonファイルキーリスト
     KEYS = [
@@ -92,6 +93,8 @@ class ParamManager:
         KEY_DELETE_ERROR_OBJECT,
         KEY_NON_PLANE_THICKNESS,
         KEY_NON_PLANE_ANGLE]
+    KEYS_NULLABLE = [
+        KEY_TARGET_GEO_AREA]
 
     # デバッグログ設定のデフォルト値
     DEFALT_DEBUG_LOG_OUTPUT = False
@@ -171,6 +174,8 @@ class ParamManager:
                 raise(Exception(
                     f'json file decoding error: {e.msg} line {r} column {c}.'))
 
+            self.target_geo_area = jsonLoad.get(self.KEY_TARGET_GEO_AREA)
+
             # キーの確認
             for key in ParamManager.KEYS:
                 if key not in jsonLoad:
@@ -209,7 +214,7 @@ class ParamManager:
             self.non_plane_angle \
                 = (jsonLoad[self.KEY_PHASE_CONSISTENCY]
                            [self.KEY_NON_PLANE_ANGLE])
-        
+
         if (type(self.las_coordinate_system) is not int
                 or not (0 < self.las_coordinate_system < 20)):
             raise ValueError(ParamManager.KEY_LAS_COORDINATE_SYS
@@ -374,6 +379,7 @@ class ParamManager:
             # エラー対応(途中終了)に変更
             raise Exception(
                 ParamManager.KEY_ROTATE_MATRIX_MODE + ' is invalid.')
+
         else:
             if (self.rotate_matrix_mode
                     is int(ParamManager.RotateMatrixMode.XYZ)):
