@@ -179,6 +179,66 @@ python3 RoofSurface/CreateSuperResolution.py param.json
 python3 SuperResolution/WallSurface/main.py param.json
 ```
 
+
+
+## 画質向上ツール
+
+### プロジェクト内相対パスへ移動 : ./tools/DeblurGANv2
+
+### 依存ライブラリのインストール
+```
+pip install –r requirements.txt # 仮想環境の開始後
+```
+
+### 事前学習モデルの学習済みパラメーターをダウンロード
+- [ブラウザからダウンロード(wget でダウンロードするエラー発生)](http://data.lip6.fr/cadene/pretrainedmodels/inceptionresnetv2-520b38e4.pth)
+- scp で inceptionresnetv2-520b38e4.pth をインスタンスにコピー
+```
+scp ~/Downloads/inceptionresnetv2-520b38e4.pth ubuntu@xxx.xxx.xxx.xxx:~/.cache/torch/hub/checkpoints/
+```
+- インスタンス内部で fpn_inception.h5
+```
+wget -O checkpoints/fpn_inception.h5 'https://docs.google.com/uc?export=download&id=1UXcsRVW-6KF23_TNzxw-xC0SzaMfXOaR&confirm=t' #https://drive.google.com/open?id=1UXcsRVW-6KF23_TNzxw-xC0SzaMfXOaR&authuser=0
+```
+
+### 画質向上開始
+```
+python3 predict.py param.json
+```
+
+
+## 解像度向上ツール
+
+### プロジェクト内相対パスへ移動 : ./tools/Real-ESRGAN
+
+### 依存ライブラリのインストール
+```
+python setup.py # 仮想環境の開始後
+```
+
+### 事前学習モデルの学習済みパラメーターをダウンロード
+```
+wget https://github.com/xinntao/Real-ESRGAN/releases/download/v0.1.0/RealESRGAN_x4plus.pth -P weights
+wget https://github.com/xinntao/Real-ESRGAN/releases/download/v0.2.1/RealESRGAN_x2plus.pth -P weights
+```
+
+### 解像度向上開始
+```
+# -g gpu-id
+# -s 解像度向上(n倍)
+# -n 事前学習モデル
+# -i 入力画像
+# -i 出力画像
+
+# 4倍解像度向上
+python3 inference_realesrgan.py -n RealESRGAN_x4plus -g 0 -s 4 -i input -o output
+
+# 2倍解像度向上
+python3 inference_realesrgan.py -n RealESRGAN_x2plus -g 0 -s 2 -i input -o output
+```
+
+
+
 ## アトラス化ツール
 
 ### プロジェクト内相対パスへ移動 : ./tools/Atlas_Prot

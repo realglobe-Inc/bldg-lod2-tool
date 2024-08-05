@@ -1,3 +1,9 @@
 [submodule "src/createmodel/housemodeling/roof_edge_detection_model/thirdparty/heat"]
 	path = src/createmodel/housemodeling/roof_edge_detection_model/thirdparty/heat
 	url = https://github.com/realglobe-Inc/heat/
+[submodule "tools/DeblurGANv2"]
+	path = tools/DeblurGANv2
+	url = https://github.com/realglobe-Inc/DeblurGANv2
+[submodule "tools/Real-ESRGAN"]
+	path = tools/Real-ESRGAN
+	url = https://github.com/realglobe-Inc/Real-ESRGAN
