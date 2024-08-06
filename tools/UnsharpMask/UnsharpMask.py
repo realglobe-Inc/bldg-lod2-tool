@@ -4,6 +4,7 @@ import argparse
 from glob import glob
 from pathlib import Path
 
+from tqdm import tqdm
 from PIL import Image, ImageFilter
 
 def main(img_pattern='input/*', out_dir='output/'):
@@ -12,7 +13,10 @@ def main(img_pattern='input/*', out_dir='output/'):
 
     imgs = sorted_glob(img_pattern)
     os.makedirs(out_dir, exist_ok=True)
-    for img_path in imgs:
+
+
+    pbar = tqdm(total=100, desc="UnsharpMask Processing", unit="item")
+    for img_index, img_path in enumerate(imgs):
         # 画像を読み込む
         image = Image.open(img_path)
 
@@ -24,6 +28,9 @@ def main(img_pattern='input/*', out_dir='output/'):
         save_path = os.path.join(out_dir, basename)
         sharpened_image.save(save_path)
 
+        partial_progress = 100 / len(imgs)
+        pbar.update(partial_progress)
+    pbar.close()
 
 if __name__ == '__main__':
     # Parse command line arguments
