@@ -15,6 +15,8 @@ from ..util.citygmlinfo import CityGmlManager
 from ..util.coordinateconverter import CoordinateConverter
 from ..util.coordinateconverter import CoordinateConverterException
 
+from tqdm import tqdm
+
 
 class ModelCreator:
     """モデル要素生成モジュール
@@ -89,11 +91,12 @@ class ModelCreator:
                 traceback.format_exc())
             raise   # 呼び出し側にも通知
 
-    def create(self, gmls: list[CityGmlManager.BuildInfo]) -> ResultType:
+    def create(self, gmls: list[CityGmlManager.BuildInfo], pbar: tqdm) -> ResultType:
         """モデル生成
 
         Args:
             gmls (list[CityGmlManager.BuildInfo]): 建物外形情報リスト
+            pbar (tqdm): 進捗バー
 
         Returns:
             ResultType: 動作結果
@@ -111,7 +114,10 @@ class ModelCreator:
 
         warn_flag = False
         for gml in gmls:
-            try:                 
+            try:
+                if pbar:
+                    pbar.set_description(f'Processing({gml.build_id})')
+
                 if gml.read_lod0_model is ProcessResult.ERROR:
                     # lod0データがない場合skip
                     gml.create_lod2_model = ProcessResult.SKIP
@@ -157,7 +163,12 @@ class ModelCreator:
                     ModuleType.MODEL_ELEMENT_GENERATION,
                     msg)
                 warn_flag = True
-        
+
+            finally:
+                if pbar:
+                    partial_progress = 100 / len(gmls)
+                    pbar.update(partial_progress)
+
         if warn_flag:
             # 未作成のモデルがある場合
             Log.output_log_write(

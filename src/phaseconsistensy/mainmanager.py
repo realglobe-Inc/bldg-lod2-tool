@@ -12,6 +12,8 @@ from .resultinfo import ResultInfo, StatusType
 from .resultinfo import ErrorType
 from .checkface import CheckFace, CheckFaces, TestResultType
 
+from tqdm import tqdm
+
 # LOG_LEVEL = logging.DEBUG
 LOG_LEVEL = logging.WARNING
 
@@ -45,11 +47,12 @@ class MainManager:
         self._summary[StatusType.DELETED] = 0
         self._summary[StatusType.ERROR] = 0
 
-    def check_and_correction(self, buildings):
+    def check_and_correction(self, buildings, pbar: tqdm):
         """位相一貫性検査/補正処理実行
 
         Args:
             buildings (list[CityGmlManager.BuildInfo]): 建物外形情報リスト
+            pbar      (tqdm): 進捗バー
 
         Returns:
             ResultType: 実行結果情報
@@ -94,7 +97,10 @@ class MainManager:
                 self._input_folder, f'{build.build_id}.obj')
             obj_info = ObjInfo()
             except_flag = False
+
             try:
+                if pbar:
+                    pbar.set_description(f'Processing({build.build_id})')
                 # OBJ ファイル入力
                 obj_info.read_file(result_info.obj_name, err_message)
 
@@ -153,21 +159,26 @@ class MainManager:
                 result_info.add_err(ErrorType.OTHERS, None, str(e))
                 except_flag = True
 
-            if except_flag:
-                result_info.status = StatusType.ERROR
-                if not self._param_manager.delete_error_flag:
-                    # 入力 OBJ を出力
-                    out_path = os.path.join(
-                        self._output_folder,
-                        os.path.basename(result_info.obj_name))
-                    shutil.copy(result_info.obj_name, out_path)
-                else:
-                    result_info.status = StatusType.DELETED
-                Log.output_log_write(LogLevel.MODEL_ERROR,
-                                     ModuleType.CHECK_PHASE_CONSISTENSY,
-                                     result_info.get_str())
-                result_type = ResultType.WARN
-            self._summary[result_info.status] += 1
+            finally:
+                if except_flag:
+                    result_info.status = StatusType.ERROR
+                    if not self._param_manager.delete_error_flag:
+                        # 入力 OBJ を出力
+                        out_path = os.path.join(
+                            self._output_folder,
+                            os.path.basename(result_info.obj_name))
+                        shutil.copy(result_info.obj_name, out_path)
+                    else:
+                        result_info.status = StatusType.DELETED
+                    Log.output_log_write(LogLevel.MODEL_ERROR,
+                                        ModuleType.CHECK_PHASE_CONSISTENSY,
+                                        result_info.get_str())
+                    result_type = ResultType.WARN
+                self._summary[result_info.status] += 1
+
+                if pbar:
+                    partial_progress = 100 / len(building_list)
+                    pbar.update(partial_progress)
 
         # ログファイル出力(サマリ部)
         self._output_log_file_summary()

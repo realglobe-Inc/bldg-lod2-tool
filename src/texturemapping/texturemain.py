@@ -12,6 +12,7 @@ from ..util.config import Config
 from ..util.log import Log, ModuleType, LogLevel
 from ..util.resulttype import ResultType, ProcessResult
 
+from tqdm import tqdm
 
 class TextureMain():
     """テクスチャ貼付けメインクラス
@@ -28,12 +29,13 @@ class TextureMain():
         # オプション出力のOBJフォルダパス
         self.optional_output_objdir = ''
 
-    def texture_main(self, buildings, file_name: str) -> None:
+    def texture_main(self, buildings, file_name: str, pbar: tqdm) -> None:
         """テクスチャ張付け開始
 
         Args:
             buildings (list[CityGmlManager.BuildInfo]): 建物外形情報リスト
             file_name (str): 入力CityGMLファイル名(拡張子付き)
+            pbar      (tqdm): 進捗バー
 
         Raises:
             FileNotFoundError: OBJファイル入力先フォルダなし
@@ -172,6 +174,9 @@ class TextureMain():
                 for build in building_list:
                     # 建造物分テクスチャ貼付け処理
                     try:
+                        if pbar:
+                            pbar.set_description(f'Processing({build.build_id})')
+
                         id = build.build_id
                         build.paste_texture = ProcessResult.SKIP
                         path = os.path.join(
@@ -220,6 +225,12 @@ class TextureMain():
                                              str(e) + ' ' + path)
                         restype = ResultType.WARN
                         build.paste_texture = ProcessResult.ERROR
+                    
+                    finally:
+                        if pbar:
+                            partial_progress = 100 / len(building_list)
+                            pbar.update(partial_progress)
+
             return restype
 
         except FileNotFoundError as e:
