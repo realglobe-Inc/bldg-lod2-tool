@@ -3,6 +3,7 @@ import os
 import datetime
 from enum import IntEnum
 
+import numpy as np
 
 class ParamManager:
     """ パラメータファイル管理クラス
@@ -174,7 +175,8 @@ class ParamManager:
                 raise(Exception(
                     f'json file decoding error: {e.msg} line {r} column {c}.'))
 
-            self.target_geo_area = jsonLoad.get(self.KEY_TARGET_GEO_AREA)
+            target_geo_area = jsonLoad.get(self.KEY_TARGET_GEO_AREA)
+            if target_geo_area: self.target_geo_area = np.array(target_geo_area)
 
             # キーの確認
             for key in ParamManager.KEYS:

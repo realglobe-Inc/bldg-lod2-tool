@@ -87,14 +87,14 @@ class CityGmlManager:
                                          'Outline not found ' + bldg.id)
                     restype = ResultType.WARN
 
-                if target_geo_area:
+                if target_geo_area is not None:
                     # 緯度（latitude）の最小値と最大値を取得
-                    target_geo_area_lat_min = target_geo_area[0][0]
-                    target_geo_area_lat_max = target_geo_area[1][0]
+                    target_geo_area_lat_min = np.min(target_geo_area[:, 0])
+                    target_geo_area_lat_max = np.max(target_geo_area[:, 0])
 
                     # 経度（longitude）の最小値と最大値を取得
-                    target_geo_area_lon_min = target_geo_area[0][1]
-                    target_geo_area_lon_max = target_geo_area[1][1]
+                    target_geo_area_lon_min = np.min(target_geo_area[:, 1])
+                    target_geo_area_lon_max = np.max(target_geo_area[:, 1])
 
                     # 緯度（latitude）の最小値と最大値を取得
                     binfo_lat_min = np.min(binfo.lod0_poslist[:, 0])
@@ -104,10 +104,11 @@ class CityGmlManager:
                     binfo_lon_min = np.min(binfo.lod0_poslist[:, 1])
                     binfo_lon_max = np.max(binfo.lod0_poslist[:, 1])
 
-                    if (target_geo_area_lat_min <= binfo_lat_min <= target_geo_area_lat_max and
-                        target_geo_area_lat_min <= binfo_lat_max <= target_geo_area_lat_max and
-                        target_geo_area_lon_min <= binfo_lon_min <= target_geo_area_lon_max and
-                        target_geo_area_lon_min <= binfo_lon_max <= target_geo_area_lon_max):
+                    # 建物の領域と検索領域が被っているかで一部の建物だけ取得
+                    if ((binfo_lat_min <= target_geo_area_lat_max or
+                        target_geo_area_lat_min <= binfo_lat_max) and
+                        (binfo_lon_min <= target_geo_area_lon_max or
+                        target_geo_area_lon_min <= binfo_lon_max)):
 
                         self.citygml_info.append(binfo)
                 else:
