@@ -33,11 +33,12 @@ class CityGmlManager:
                            BldElementType.WALL: ["WallSurface", "wall_"],
                            BldElementType.GROUND: ["GroundSurface", "ground_"]}
 
-    def read_file(self, file_name: str, target_geo_area):
+    def read_file(self, file_name: str, target_geo_area=None):
         """CityGMLファイル読み込み
 
         Args:
-            file_name (str): ファイル名(拡張子付き)
+            file_name       (str): ファイル名(拡張子付き)
+            target_geo_area (NDArray): 建築物選択範囲
 
         Returns:
             BuildInfo[]: CityGML建物情報リスト

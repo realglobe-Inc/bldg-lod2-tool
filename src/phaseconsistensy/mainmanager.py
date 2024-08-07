@@ -47,7 +47,7 @@ class MainManager:
         self._summary[StatusType.DELETED] = 0
         self._summary[StatusType.ERROR] = 0
 
-    def check_and_correction(self, buildings, pbar: tqdm):
+    def check_and_correction(self, buildings, pbar=None):
         """位相一貫性検査/補正処理実行
 
         Args:
@@ -99,7 +99,7 @@ class MainManager:
             except_flag = False
 
             try:
-                if pbar:
+                if pbar is not None:
                     pbar.set_description(f'Processing({build.build_id})')
                 # OBJ ファイル入力
                 obj_info.read_file(result_info.obj_name, err_message)
@@ -176,7 +176,7 @@ class MainManager:
                     result_type = ResultType.WARN
                 self._summary[result_info.status] += 1
 
-                if pbar:
+                if pbar is not None:
                     partial_progress = 100 / len(building_list)
                     pbar.update(partial_progress)
 

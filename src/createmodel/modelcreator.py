@@ -91,7 +91,7 @@ class ModelCreator:
                 traceback.format_exc())
             raise   # 呼び出し側にも通知
 
-    def create(self, gmls: list[CityGmlManager.BuildInfo], pbar: tqdm) -> ResultType:
+    def create(self, gmls: list[CityGmlManager.BuildInfo], pbar=None) -> ResultType:
         """モデル生成
 
         Args:
@@ -115,7 +115,7 @@ class ModelCreator:
         warn_flag = False
         for gml in gmls:
             try:
-                if pbar:
+                if pbar is not None:
                     pbar.set_description(f'Processing({gml.build_id})')
 
                 if gml.read_lod0_model is ProcessResult.ERROR:
@@ -165,7 +165,7 @@ class ModelCreator:
                 warn_flag = True
 
             finally:
-                if pbar:
+                if pbar is not None:
                     partial_progress = 100 / len(gmls)
                     pbar.update(partial_progress)
 

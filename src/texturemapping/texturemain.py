@@ -29,7 +29,7 @@ class TextureMain():
         # オプション出力のOBJフォルダパス
         self.optional_output_objdir = ''
 
-    def texture_main(self, buildings, file_name: str, pbar: tqdm) -> None:
+    def texture_main(self, buildings, file_name: str, pbar=None) -> None:
         """テクスチャ張付け開始
 
         Args:
@@ -174,7 +174,7 @@ class TextureMain():
                 for build in building_list:
                     # 建造物分テクスチャ貼付け処理
                     try:
-                        if pbar:
+                        if pbar is not None:
                             pbar.set_description(f'Processing({build.build_id})')
 
                         id = build.build_id
@@ -227,7 +227,7 @@ class TextureMain():
                         build.paste_texture = ProcessResult.ERROR
                     
                     finally:
-                        if pbar:
+                        if pbar is not None:
                             partial_progress = 100 / len(building_list)
                             pbar.update(partial_progress)
 
