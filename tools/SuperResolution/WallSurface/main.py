@@ -115,6 +115,7 @@ def check_error(param):
             log_root = Path("main_log.txt")
             bug_root = Path("debug.log")
         else:
+            param['OutputLogDir'] = os.path.expanduser(param['OutputLogDir'])
             log_dir = os.path.join(param['OutputLogDir'], f"outputlog_{time.strftime('%Y%m%d_%H%M%S')}")
             Path(log_dir).mkdir(parents=True, exist_ok=True)
             log_root = Path(os.path.join(log_dir, "main_log.txt"))
@@ -130,10 +131,13 @@ def check_error(param):
 
         if not param.get('InputDir') or not param.get('OutputDir'):
             raise ValueError("'InputDir' and 'OutputDir' must be specified in the JSON file.")
-        
+
+        param['OutputDir'] = os.path.expanduser(param['OutputDir'])
+
         if not param.get('InputDir'):
             param["Device"] = 'cuda'
         elif param.get('Device') not in ['cuda', 'cpu']:
+            param['InputDir'] = os.path.expanduser(param['InputDir'])
             param["Device"] = 'cuda'
 
     except ValueError as ve:

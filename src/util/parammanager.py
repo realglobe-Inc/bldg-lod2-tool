@@ -193,17 +193,15 @@ class ParamManager:
 
             # 値の取得
             self.las_coordinate_system = jsonLoad[self.KEY_LAS_COORDINATE_SYS]
-            self.dsm_folder_path = jsonLoad[self.KEY_DSM_FOLDER_PATH]
-            self.citygml_folder_path = jsonLoad[self.KEY_CITYGML_FOLDER_PATH]
-            self.texture_folder_path = jsonLoad[self.KEY_TEXTURE_FOLDER_PATH]
-            self.ex_calib_element_path = jsonLoad[
-                self.KEY_EX_CALIB_ELEMENT_PATH]
-            self.camera_info_path = jsonLoad[self.KEY_CAMERA_INFO_PATH]
-            self.output_folder_path = jsonLoad[self.KEY_OUTPUT_FOLDER_PATH]
+            self.dsm_folder_path = os.path.expanduser(jsonLoad[self.KEY_DSM_FOLDER_PATH])
+            self.citygml_folder_path = os.path.expanduser(jsonLoad[self.KEY_CITYGML_FOLDER_PATH])
+            self.texture_folder_path = os.path.expanduser(jsonLoad[self.KEY_TEXTURE_FOLDER_PATH])
+            self.ex_calib_element_path = os.path.expanduser(jsonLoad[self.KEY_EX_CALIB_ELEMENT_PATH])
+            self.camera_info_path = os.path.expanduser(jsonLoad[self.KEY_CAMERA_INFO_PATH])
+            self.output_folder_path = os.path.expanduser(jsonLoad[self.KEY_OUTPUT_FOLDER_PATH])
             self.output_obj = jsonLoad[self.KEY_OUTPUT_OBJ]
             self.output_texture = jsonLoad[self.KEY_OUTPUT_TEXTURE]
-            self.output_log_folder_path = jsonLoad[
-                self.KEY_OUTPUT_LOG_FOLDER_PATH]
+            self.output_log_folder_path = os.path.expanduser(jsonLoad[self.KEY_OUTPUT_LOG_FOLDER_PATH])
             self.debug_log_output = jsonLoad[self.KEY_DEBUG_LOG_OUTPUT]
             self.las_swap_xy = jsonLoad[self.KEY_LAS_SWAP_XY]
             self.rotate_matrix_mode = jsonLoad[self.KEY_ROTATE_MATRIX_MODE]

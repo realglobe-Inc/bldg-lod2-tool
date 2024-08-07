@@ -107,10 +107,10 @@ class ParamManager:
                 f'json file decoding error: {e.msg} line {r} column {c}.'))
                 
         # 値の取得
-        self.input_gml_folder_path = jsonLoad[self.KEY_FILE_PATH][
-            self.KEY_INPUT_GML_FOLDER_PATH]
-        self.output_gml_folder_path = jsonLoad[self.KEY_FILE_PATH][
-            self.KEY_OUTPUT_GML_FOLDER_PATH]
+        self.input_gml_folder_path = os.path.expanduser(
+            jsonLoad[self.KEY_FILE_PATH][self.KEY_INPUT_GML_FOLDER_PATH])
+        self.output_gml_folder_path = os.path.expanduser(
+            jsonLoad[self.KEY_FILE_PATH][self.KEY_OUTPUT_GML_FOLDER_PATH])
         self.output_width = jsonLoad[self.KEY_OUTPUT_W]
         self.output_height = jsonLoad[self.KEY_OUTPUT_H]
         self.background_color = jsonLoad[self.KEY_BACKGROUND_COLOR]

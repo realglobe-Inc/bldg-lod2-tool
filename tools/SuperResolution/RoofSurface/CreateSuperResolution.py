@@ -135,6 +135,7 @@ def check_error(cfg):
             log_root = Path("main_log.txt")
             bug_root = Path("debug.log")
         else:
+            cfg['OutputLogDir'] = os.path.expanduser(cfg['OutputLogDir'])
             log_dir = os.path.join(cfg['OutputLogDir'], f"outputlog_{time.strftime('%Y%m%d_%H%M%S')}")
             Path(log_dir).mkdir(parents=True, exist_ok=True)
             log_root = Path(os.path.join(log_dir, "main_log.txt"))
@@ -151,6 +152,8 @@ def check_error(cfg):
         if not cfg.get('InputDir') or not cfg.get('OutputDir'):
             raise ValueError("'InputDir' and 'OutputDir' must be specified in the JSON file.")
 
+        cfg['OutputDir'] = os.path.expanduser(cfg['OutputDir'])
+        cfg['InputDir'] = os.path.expanduser(cfg['InputDir'])
         Path(cfg['OutputDir']).mkdir(parents=True, exist_ok=True)
 
         if not cfg.get('GSD'):

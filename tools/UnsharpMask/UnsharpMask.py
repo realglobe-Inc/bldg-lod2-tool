@@ -43,6 +43,6 @@ if __name__ == '__main__':
         param = json.load(pf)
 
     main(
-        img_pattern=os.path.join(param['FilePath']['InputImagePath'], '*'),
-        out_dir=param['FilePath']['OutputImagePath']
+        img_pattern=os.path.join(os.path.expanduser(param['FilePath']['InputImagePath']), '*'),
+        out_dir=os.path.expanduser(param['FilePath']['OutputImagePath'])
     )
