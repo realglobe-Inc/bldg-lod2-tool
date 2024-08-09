@@ -130,7 +130,11 @@ param.json
     "NonPlaneThickness": 0.05,
     "NonPlaneAngle": 15
   },
-  "TargetGeoArea" : [[35, 139], [36, 140]]
+  "TargetCoordAreas" : [
+    [[35, 139, 6668], [36, 140, 6668]],
+    [[35, 139, 6668], [-12516, -53774, 6677]],
+    [[-12516, -53774, 6677], [-12516, -53774, 6677]]
+  ]
 }
 ```
 
@@ -155,7 +159,7 @@ param.json
 #### 選択パラメーター
 | No |	キー名 |	値形式 | 説明 |
 | -- | -- | -- | -- | 
-|1| TargetGeoArea | `Array<Array<number>>` | 緯度経度の領域を指定して建築物の対象を絞ります。入力しない場合、全ての建築物を対象とします
+|1| TargetCoordAreas | `Array<Array<Array<number>>>` | 緯度経度の領域を指定して建築物の対象を絞ります。入力しない場合、全ての建築物を対象とします
 
 
 ### LOD2建築物モデル自動作成開始
@@ -246,7 +250,9 @@ python3 UnsharpMask.py param.json
 
 ### 依存ライブラリのインストール
 ```
-python setup.py # 仮想環境の開始後
+# 仮想環境の開始後
+pip install -r requirements.txt
+python setup.py
 ```
 
 ### 事前学習モデルの学習済みパラメーターをダウンロード

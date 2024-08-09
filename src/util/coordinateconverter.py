@@ -28,7 +28,7 @@ class CoordinateConverter:
         Raises:
             CoordinateConverterException: 平面直角座標系の系番号が範囲外の場合
         """
-        self._polar_trans = None
+        self._polar_trans: Transformer = None
         self._cartesian_trans = None
 
         if coordinate_id in CoordinateConverter._EPSG:

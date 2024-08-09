@@ -2,6 +2,7 @@ import json
 import os
 import datetime
 from enum import IntEnum
+from typing import Union
 
 import numpy as np
 
@@ -72,7 +73,7 @@ class ParamManager:
     KEY_DELETE_ERROR_OBJECT = 'DeleteErrorObject'
     KEY_NON_PLANE_THICKNESS = 'NonPlaneThickness'
     KEY_NON_PLANE_ANGLE = 'NonPlaneAngle'
-    KEY_TARGET_GEO_AREA = 'TargetGeoArea'
+    KEY_TARGET_COORD_AREAS = 'TargetCoordAreas'
 
     # jsonファイルキーリスト
     KEYS = [
@@ -95,7 +96,7 @@ class ParamManager:
         KEY_NON_PLANE_THICKNESS,
         KEY_NON_PLANE_ANGLE]
     KEYS_NULLABLE = [
-        KEY_TARGET_GEO_AREA]
+        KEY_TARGET_COORD_AREAS]
 
     # デバッグログ設定のデフォルト値
     DEFALT_DEBUG_LOG_OUTPUT = False
@@ -140,6 +141,9 @@ class ParamManager:
         # 外部標定要素から算出する回転行列のモード
         self.rotate_matrix_mode = ParamManager.RotateMatrixMode.XYZ
 
+        # 建築物選択範囲
+        self.target_coord_areas: Union[list[list[list[float]]], None]
+
         # 作業用パラメータ
         self.time = datetime.datetime.now()     # 処理開始時刻
 
@@ -175,8 +179,7 @@ class ParamManager:
                 raise(Exception(
                     f'json file decoding error: {e.msg} line {r} column {c}.'))
 
-            target_geo_area = jsonLoad.get(self.KEY_TARGET_GEO_AREA)
-            if target_geo_area: self.target_geo_area = np.array(target_geo_area)
+            self.target_coord_areas = jsonLoad.get(self.KEY_TARGET_COORD_AREAS)
 
             # キーの確認
             for key in ParamManager.KEYS:

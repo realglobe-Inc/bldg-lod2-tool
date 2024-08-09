@@ -1,8 +1,12 @@
 import os
+from typing import Union
 import lxml
 import shutil
 import glob
+
 import numpy as np
+from numpy.typing import NDArray
+from pyproj import Transformer
 
 from ..thirdparty import plateaupy as plapy
 from .coordinateconverter import CoordinateConverter
@@ -13,10 +17,60 @@ from .config import Config
 from .log import Log, ModuleType, LogLevel
 from .resulttype import ProcessResult, ResultType
 
-
 class CityGmlManager:
     """CityGML建物情報クラス
     """
+
+    class BuildInfo:
+        """CityGML出力建物形状情報クラス(建物毎)
+        """
+        class Lod2Info:
+            """CityGML建物形状座標クラス(ポリゴン毎)
+            """
+            def __init__(self):
+                """コンストラクタ
+                """
+                self.face_type = ''      # ポリゴン種別
+                self.id_base = ''        # idベース
+                self.poslist = []        # 建物形状座標リスト
+                self.tex_coordlist = []  # テクスチャ画像座標リスト
+
+        def __init__(self):
+            """コンストラクタ
+            """
+            self.build_id = ''     # 建物ID(OBJファイル名は同一)
+            self.lod0_poslist = []
+            self.lod2_info = []
+            self.tex_img_uri = None
+            self.create_result = ResultType.SUCCESS         # 最終結果
+            self.read_lod0_model = ProcessResult.ERROR      # LOD0モデルの読み込み結果
+            self.create_lod2_model = ProcessResult.ERROR    # LOD2モデルの作成結果
+            self.double_point = ProcessResult.SKIP          # 連続頂点重複検査結果
+            self.solid = ProcessResult.SKIP                 # ソリッド閉合検査結果
+            self.non_plane = ProcessResult.SKIP             # 非平面検査結果
+            self.zero_area = ProcessResult.SKIP             # 面積0ポリゴン検査結果
+            self.intersection = ProcessResult.SKIP          # 自己交差/自己接触検査結果
+            self.face_intersection = ProcessResult.SKIP     # 地物内面同士交差検査結果
+            self.paste_texture = ProcessResult.SKIP         # テクスチャ貼付け結果
+            # CityGMLファイル名(サマリーファイルの出力用(複数ファイル対応で追加))
+            self.citygml_filename = ''
+
+        def append_Lod2Info(self, face_type, poslist, coordlist, id):
+            """ポリゴン情報追加
+
+            Args:
+                face_type (BldElementType): ポリゴン種別
+                poslist (Point[]): 建物形状座標リスト
+                coordlist (Point[]): テクスチャ画像リスト
+                id (string): ポリゴンのIDベース
+            """
+            lod2info = self.Lod2Info()
+            lod2info.face_type = face_type
+            lod2info.poslist = poslist
+            lod2info.tex_coordlist = coordlist
+            lod2info.id_base = id
+            self.lod2_info.append(lod2info)
+
     def __init__(self, param_manager: ParamManager) -> None:
         """コンストラクタ
 
@@ -33,12 +87,16 @@ class CityGmlManager:
                            BldElementType.WALL: ["WallSurface", "wall_"],
                            BldElementType.GROUND: ["GroundSurface", "ground_"]}
 
-    def read_file(self, file_name: str, target_geo_area=None):
+    def read_file(
+        self,
+        file_name: str,
+        target_coord_areas: Union[list[list[list[float]]], None] = None,
+    ) -> Union[list[BuildInfo], None]:
         """CityGMLファイル読み込み
 
         Args:
             file_name       (str): ファイル名(拡張子付き)
-            target_geo_area (NDArray): 建築物選択範囲
+            target_coord_areas (list[list[list[float]]] | None): 建築物選択範囲
 
         Returns:
             BuildInfo[]: CityGML建物情報リスト
@@ -61,6 +119,13 @@ class CityGmlManager:
 
             if not plbld.buildings:
                 raise Exception('Get err lod1citygml')
+
+            target_geo_areas = None
+            if target_coord_areas is not None:
+                target_geo_areas = []
+                for target_coord_area in target_coord_areas:
+                    target_geo_area = self._get_target_geo_area(target_coord_area)
+                    target_geo_areas.append(target_geo_area)
 
             not_found_outline_num = 0
             for bldg in plbld.buildings:
@@ -88,32 +153,34 @@ class CityGmlManager:
                                          'Outline not found ' + bldg.id)
                     restype = ResultType.WARN
 
-                if target_geo_area is not None:
-                    # 緯度（latitude）の最小値と最大値を取得
-                    target_geo_area_lat_min = np.min(target_geo_area[:, 0])
-                    target_geo_area_lat_max = np.max(target_geo_area[:, 0])
-
-                    # 経度（longitude）の最小値と最大値を取得
-                    target_geo_area_lon_min = np.min(target_geo_area[:, 1])
-                    target_geo_area_lon_max = np.max(target_geo_area[:, 1])
-
-                    # 緯度（latitude）の最小値と最大値を取得
-                    binfo_lat_min = np.min(binfo.lod0_poslist[:, 0])
-                    binfo_lat_max = np.max(binfo.lod0_poslist[:, 0])
-
-                    # 経度（longitude）の最小値と最大値を取得
-                    binfo_lon_min = np.min(binfo.lod0_poslist[:, 1])
-                    binfo_lon_max = np.max(binfo.lod0_poslist[:, 1])
-
-                    # 建物の領域と検索領域が被っているかで一部の建物だけ取得
-                    if ((binfo_lat_min <= target_geo_area_lat_max or
-                        target_geo_area_lat_min <= binfo_lat_max) and
-                        (binfo_lon_min <= target_geo_area_lon_max or
-                        target_geo_area_lon_min <= binfo_lon_max)):
-
-                        self.citygml_info.append(binfo)
-                else:
+                if target_geo_areas is None:
                     self.citygml_info.append(binfo)
+                else:
+                    for target_geo_area in target_geo_areas:
+                        # 緯度（latitude）の最小値と最大値を取得
+                        target_geo_area_lat_min = np.min(target_geo_area[:, 0])
+                        target_geo_area_lat_max = np.max(target_geo_area[:, 0])
+
+                        # 経度（longitude）の最小値と最大値を取得
+                        target_geo_area_lon_min = np.min(target_geo_area[:, 1])
+                        target_geo_area_lon_max = np.max(target_geo_area[:, 1])
+
+                        # 緯度（latitude）の最小値と最大値を取得
+                        binfo_lat_min = np.min(binfo.lod0_poslist[:, 0])
+                        binfo_lat_max = np.max(binfo.lod0_poslist[:, 0])
+
+                        # 経度（longitude）の最小値と最大値を取得
+                        binfo_lon_min = np.min(binfo.lod0_poslist[:, 1])
+                        binfo_lon_max = np.max(binfo.lod0_poslist[:, 1])
+
+                        # 建物の領域と検索領域が被っているか
+                        if (target_geo_area_lat_max >= binfo_lat_min and
+                            target_geo_area_lat_min <= binfo_lat_max and
+                            target_geo_area_lon_max >= binfo_lon_min and
+                            target_geo_area_lon_min <= binfo_lon_max):
+
+                            self.citygml_info.append(binfo)
+                            break
 
             if len(self.citygml_info) == not_found_outline_num:
                 raise Exception('All outline not found')
@@ -470,52 +537,30 @@ class CityGmlManager:
         else:
             return False
 
-    class BuildInfo:
-        """CityGML出力建物形状情報クラス(建物毎)
+    def _get_target_geo_area(self, target_coord_area: list[list[float]]) -> NDArray[np.float_]:
+        """建築物検索範囲から移動経度範囲に変換
+
+        Args:
+            target_coord_area (list[list[float]]): 
+
+        Returns:
+            NDArray[np.float_]: 建築物の移動経度範囲
         """
-        def __init__(self):
-            """コンストラクタ
-            """
-            self.build_id = ''     # 建物ID(OBJファイル名は同一)
-            self.lod0_poslist = []
-            self.lod2_info = []
-            self.tex_img_uri = None
-            self.create_result = ResultType.SUCCESS         # 最終結果
-            self.read_lod0_model = ProcessResult.ERROR      # LOD0モデルの読み込み結果
-            self.create_lod2_model = ProcessResult.ERROR    # LOD2モデルの作成結果
-            self.double_point = ProcessResult.SKIP          # 連続頂点重複検査結果
-            self.solid = ProcessResult.SKIP                 # ソリッド閉合検査結果
-            self.non_plane = ProcessResult.SKIP             # 非平面検査結果
-            self.zero_area = ProcessResult.SKIP             # 面積0ポリゴン検査結果
-            self.intersection = ProcessResult.SKIP          # 自己交差/自己接触検査結果
-            self.face_intersection = ProcessResult.SKIP     # 地物内面同士交差検査結果
-            self.paste_texture = ProcessResult.SKIP         # テクスチャ貼付け結果
-            # CityGMLファイル名(サマリーファイルの出力用(複数ファイル対応で追加))
-            self.citygml_filename = ''
+        target_geo_area = []
+        for target_coord_spot in target_coord_area:
+            pos_a, pos_b, epsg_code = target_coord_spot
 
-        def append_Lod2Info(self, face_type, poslist, coordlist, id):
-            """ポリゴン情報追加
+            # 緯度経度座標の場合はそのまま
+            if epsg_code == 6668:
+                target_geo_area.append([pos_a, pos_b])
 
-            Args:
-                face_type (BldElementType): ポリゴン種別
-                poslist (Point[]): 建物形状座標リスト
-                coordlist (Point[]): テクスチャ画像リスト
-                id (string): ポリゴンのIDベース
-            """
-            lod2info = self.Lod2Info()
-            lod2info.face_type = face_type
-            lod2info.poslist = poslist
-            lod2info.tex_coordlist = coordlist
-            lod2info.id_base = id
-            self.lod2_info.append(lod2info)
+            # 平面直角座標 -> 緯度経度座標
+            else:
+                polar_trans = Transformer.from_crs(
+                    f'epsg:{epsg_code}',
+                    'epsg:6668', always_xy=True)
 
-        class Lod2Info:
-            """CityGML建物形状座標クラス(ポリゴン毎)
-            """
-            def __init__(self):
-                """コンストラクタ
-                """
-                self.face_type = ''      # ポリゴン種別
-                self.id_base = ''        # idベース
-                self.poslist = []        # 建物形状座標リスト
-                self.tex_coordlist = []  # テクスチャ画像座標リスト
+                lon, lat = polar_trans.transform(pos_a, pos_b)
+                target_geo_area.append([lat, lon])
+
+        return np.array(target_geo_area, dtype=np.float_)

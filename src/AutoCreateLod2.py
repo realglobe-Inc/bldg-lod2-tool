@@ -58,6 +58,7 @@ def main():
         log.log_footer()
         sys.exit()
 
+    buildings: list[CityGmlManager.BuildInfo] = []
     try:
         ret_citygml_read = ResultType.ERROR     # CityGML入力結果初期化
 
@@ -93,8 +94,8 @@ def main():
 
             citygml = CityGmlManager(param_manager)
             # CityGML読み込み
-            ret_citygml_read, buildings = citygml.read_file(
-                file_name=file_name, target_geo_area=param_manager.target_geo_area)
+            ret_citygml_read, buildings = citygml.read_file(file_name=file_name,
+                target_coord_areas=param_manager.target_coord_areas)
 
             log.module_result_log(
                 ModuleType.INPUT_CITYGML, ret_citygml_read)
