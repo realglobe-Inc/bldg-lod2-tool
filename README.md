@@ -3,84 +3,13 @@
 
 ![image 8](https://user-images.githubusercontent.com/79615787/227534529-f858e8e7-1c56-49de-a5ab-5be177c1a0a9.png)
 
-## 1. 概要
-
-## 2. 「LOD2建築物モデル自動作成ツール」について
-
-「LOD2建築物モデル自動作成ツールv1.0」は2022年度のProject PLATEAUにおいて開発されました。  
-「LOD2建築物モデル自動作成ツールv2.0」はv1.0を改修する形で2023年度に開発されました。  
-
-「LOD2建築物モデル自動作成ツールv2.0」では、追加の機械学習やファインチューニングによるLOD2建築物モデル自動作成機能の精度向上を図るとともに、以下の新機能を追加しています。  
-
-- 建物テクスチャアトラス化ツール \
-  1棟1画像のテクスチャ画像を、複数棟1画像のテクスチャ画像へ統合します。
-
-- 建物テクスチャ視認性向上ツール
-  - 屋根面視認性向上ツール \
-    LOD2建築物モデル自動作成ツールへの入力データである航空写真（中心投影）を入力とし、地上画素寸法6.25cm相当に超解像化された画像を出力します。
-  - 壁面視認性向上ツール \
-    LOD2建築物モデル自動作成ツールで出力されたテクスチャ画像を入力とし、壁面部のみ視認性を向上させた画像変換されたテクスチャ画像を出力します。
-
-建物テクスチャアトラス化ツール及び建物テクスチャ視認性向上ツールに関しては、[3. 利用手順](#3-利用手順)に記載している利用チュートリアル内の操作マニュアル及び環境構築手順に詳細を記載してあります。
-
-本ツールの詳細については以下の技術レポートを参照してください。
-- 2023年度 | AI等を活用したLOD2自動生成ツールの開発及びOSS化技術検証レポート
-https://www.mlit.go.jp/plateau/file/libraries/doc/plateau_tech_doc_0061_ver01.pdf
-
-- 2023年度 | 3D都市モデルのテクスチャ高解像度化手法及び描画パフォーマンス向上に関する技術調査レポート
-https://www.mlit.go.jp/plateau/file/libraries/doc/plateau_tech_doc_0062_ver01.pdf
-
-- 2022年度 | AI等を活用したLOD2自動生成ツールの開発及びOSS化技術検証レポート
-https://www.mlit.go.jp/plateau/file/libraries/doc/plateau_tech_doc_0056_ver01.pdf
-
-
-## 3. 利用手順(要修正)
-
-### git クローン
-```
-git clone --recurse-submodules https://github.com/realglobe-Inc/bldg-lod2-tool
-```
+## 環境構築 & 実行方法
 
 ### [AWS EC2 Ubuntu 20.04 での環境構築のガイド](./docs/tutorials/setup-linux/README.md)
 
-### Windows での環境構築のガイド
-本ツールの構築手順及び利用手順については[利用チュートリアル](https://project-plateau.github.io/Auto-Create-bldg-lod2-tool/)を参照してください。
+## 利用技術
 
-<ツールの利用順>
-
-![ツールの利用順](./img/readme_001.png)
-
-## 4. システム概要
-
-### 【LOD2建築物モデル自動作成ツール】
-
-#### ①CityGML入力機能
-
-- LOD1建築物モデルのCityGML2.0形式のファイルを読み込みます。
-  - LOD1建築物モデルは、[G空間情報センター 3D都市モデル（Project PLATEAU）ポータルサイト](https://www.geospatial.jp/ckan/dataset/plateau)で公開している建築物モデルのCityGMLデータを利用することを想定しています。
-
-#### ②LOD2建築物モデル作成機能
-
-- LOD1建築物モデルと航空写真DSM点群等を入力としてLOD2建築物モデルを作成します。
-  - 航空写真DSM点群は、SfMソフトウェアを用いて航空写真（原画像）から作成することを想定しています。
-
-#### ③位相一貫性チェック・補正機能
-
-- 作成したLOD2建築物モデルのエラーチェックを行います。
-- エラーが発生しているLOD2建築物モデルはログファイルにて通知します。
-
-#### ④テクスチャ貼付け機能
-
-- 航空写真(原画像)からLOD2建築物モデルのテクスチャ画像を作成しモデルに貼付けます.
-
-#### ⑤CityGML出力機能
-
-- LOD2建築物モデルをCityGML2.0形式のファイルとして出力します。
-- 出力するデータは、入力CityGMLデータにLOD2建築物モデルデータが追記された形となります。
-
-## 5. 利用技術
-
-本ツールは、Python(バージョン3.9以上)のインストールが必要です。
+本ツールは、Python(バージョン3.9)のインストールが必要です。
 
 | 種別 | ライブラリ名 | ライセンス | 説明 |
 | - | - | - | - |
@@ -108,53 +37,56 @@ git clone --recurse-submodules https://github.com/realglobe-Inc/bldg-lod2-tool
 |  |scikit-learn|BSD 3-Clause License|機械学習ライブラリ|
 |  |scipy|BSD 3-Clause License|統計や線形代数、信号・画像処理などのライブラリ|
 |  |Shapely|BSD 3-Clause License|図形処理ライブラリ|
+|  |Torch|BSD 3-Clause Lisence|機械学習ライブラリ|
 |  |Torchvision|BSD 3-Clause Lisence|機械学習ライブラリ|
 
-※ライブラリ名称は、pipコマンドでインストールで使用可能な名称を記載しています
-
-- torch, torchvision以外のライブラリに関しては、pipコマンドによるインストールで利用可能なrequirements.txtをリポジトリに用意してあります
-- torch, torchvisionのインストールに関しては、[LOD2建築物モデル自動作成ツールの環境構築手順書](https://project-plateau.github.io/Auto-Create-bldg-lod2-tool/manual/devManLod2Bldg.html)の「7章 GPU環境の構築」を参照してください
-
-## 6. 動作環境
-
-| 項目               | 最小動作環境               | 推奨動作環境                   |
-| ------------------ | ------------------------- | ------------------------------ |
-| OS                 | Microsoft Windows 10 または 11 または Linux | 同左 |
-| CPU                | Intel Core i5以上 | Intel Core i7以上 |
-| メモリ             | 8GB以上 | 16GB以上 |
-| GPU                | NVIDIA Quadro P620以上 | NVIDIA RTX 2080以上 |
-| GPU メモリ         | 2GB以上 | 8GB以上 |
-
-## 7. 本リポジトリのフォルダ構成
-
-| フォルダ名 |　詳細 |
+## フォルダ構成
+| 相対パス |　詳細 |
 |-|-|
-| Auto-Create-bldg-lod2-tool(リポジトリ直下) | LOD2建築物自動作成ツール |
-| tools/Atlas_Prot | 建物テクスチャアトラス化ツール |
-| tools/SuperResolution | 建物テクスチャ視認性向上ツール |
-| tools/SuperResolution/RoofSurface | 屋根面視認性向上ツール |
-| tools/SuperResolution/WallSurface | 壁面視認性向上ツール |
+| `./` | LOD2建築物自動作成ツール |
+| `./tools/Atlas_Prot/` | 建物テクスチャアトラス化ツール |
+| `./tools/SuperResolution/` | 建物テクスチャ視認性向上ツール |
+| `./tools/SuperResolution/RoofSurface/` | 屋根面視認性向上ツール |
+| `./tools/SuperResolution/WallSurface/` | 壁面視認性向上ツール |
+| `./tools/UnsharpMask/`                | 画質のエッジシャープ化ツール |
+| `./tools/Real-ESRGAN/`              | 解像度向上ツール |
 
-![リポジトリ構成](./img/readme_002.png)
-
-## 8. ライセンス
-
-- ソースコードおよび関連ドキュメントの著作権は国土交通省に帰属します。
+## ライセンス
+- 本プロジェクトは[Auto-Create-bldg-lod2-tool](https://github.com/Project-PLATEAU/Auto-Create-bldg-lod2-tool/tree/f68a85bac55ff61d3c5c6192121513e7b7f77861)をフォークしたものです。
 - 本ツールはGNU General Public License v3.0を適用します。
-- 本ツールは開発者の許可を得てHEAT: Holistic Edge Attention Transformer for Structured Reconstructionを利用させて頂いております。HEATは2023年1月29日より商用不可とライセンスを変更されましたが、本ソフトウェアはそれより前のバージョンを使用しております。
 - 本ドキュメントは[Project PLATEAUのサイトポリシー](https://www.mlit.go.jp/plateau/site-policy/)（CCBY4.0および政府標準利用規約2.0）に従い提供されています。
 
-## 9. 注意事項
-
+## 注意事項
 - 本レポジトリは参考資料として提供しているものです。動作保証は行っておりません。
 - 予告なく変更・削除する可能性があります。
-- 本レポジトリの利用により生じた損失及び損害等について、国土交通省はいかなる責任も負わないものとします。
+- 本レポジトリの利用により生じた損失及び損害等について、Realglobe はいかなる責任も負わないものとします。
 
-## 10. 参考資料
-
-- 2023年度 | AI等を活用したLOD2自動生成ツールの開発及びOSS化技術検証レポート
-https://www.mlit.go.jp/plateau/file/libraries/doc/plateau_tech_doc_0061_ver01.pdf
-- 2023年度 | 3D都市モデルのテクスチャ高解像度化手法及び描画パフォーマンス向上に関する技術調査レポート
-https://www.mlit.go.jp/plateau/file/libraries/doc/plateau_tech_doc_0062_ver01.pdf
-- 2022年度 | AI等を活用したLOD2自動生成ツールの開発及びOSS化技術検証レポート
+## 2023年までの開発履歴の参照
+- 2022年開発 | AI等を活用したLOD2自動生成ツールの開発及びOSS化技術検証レポート
 https://www.mlit.go.jp/plateau/file/libraries/doc/plateau_tech_doc_0056_ver01.pdf
+- 2023年開発 | AI等を活用したLOD2自動生成ツールの開発及びOSS化技術検証レポート
+https://www.mlit.go.jp/plateau/file/libraries/doc/plateau_tech_doc_0061_ver01.pdf
+- 2023年開発 | 3D都市モデルのテクスチャ高解像度化手法及び描画パフォーマンス向上に関する技術調査レポート
+https://www.mlit.go.jp/plateau/file/libraries/doc/plateau_tech_doc_0062_ver01.pdf
+- 2023年開発追記漏れがあり(要追記)
+  - 屋根線取得部分で設計変更。DSMから屋根イメージを取得するため、オルソ画像の入力はなしになった
+
+## 2024年以後の開発履歴の参照
+
+## 著作権
+
+本プロジェクトの元のコードは以下の著作権に従います:
+
+- 著作権 (C) 2024 国土交通省
+
+このプロジェクトはGNU General Public License v3.0の下でライセンスされています。詳細は[LICENSEファイル](LICENSE)を参照してください。
+
+### フォークに関する著作権
+
+本プロジェクトは[Auto-Create-bldg-lod2-tool](https://github.com/Project-PLATEAU/Auto-Create-bldg-lod2-tool/tree/f68a85bac55ff61d3c5c6192121513e7b7f77861)をフォークしたものです。
+
+新しい変更部分に関する著作権:
+
+- 著作権 (C) 2024 Realglobe
+
+本プロジェクトの新しい部分も、GPLv3の条件の下でライセンスされています。

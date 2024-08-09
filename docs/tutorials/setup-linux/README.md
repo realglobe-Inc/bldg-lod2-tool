@@ -1,5 +1,14 @@
 # AWS EC2 Ubuntu 20.04 での環境構築のガイド
 
+## 動作環境
+| 項目               | 最小動作環境               | 推奨動作環境                   |
+| ------------------ | ------------------------- | ------------------------------ |
+| OS                 | Microsoft Windows 10 または 11 または Linux | 同左 |
+| CPU                | Intel Core i5以上 | Intel Core i7以上 |
+| メモリ             | 8GB以上 | 16GB以上 |
+| GPU                | NVIDIA Quadro P620以上 | NVIDIA RTX 2080以上 |
+| GPU メモリ         | 2GB以上 | 8GB以上 |
+
 ## インスタンス構築
 - AWS cuda 11.3 がインストールされている AMIを選択して、EC2作成
   - 22.04 以上からは cuda 11.3 がインストールされないから注意
@@ -20,6 +29,10 @@ pyenv install 3.9.19
 pyenv global 3.9.19
 ```
 
+## プロジェクト clone
+```
+git clone --recurse-submodules https://github.com/realglobe-Inc/bldg-lod2-tool
+```
 
 ## python 仮想環境の設定方法
 - 以下を ~/.bashrc に追加
