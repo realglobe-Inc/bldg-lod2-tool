@@ -53,7 +53,7 @@ def to_cartesian_point(lat: float, lon: float, dst_epsg: int):
   Convert latitude and longitude to the target Cartesian coordinate system.
   """
   try:
-    transformer = Transformer.from_crs(f"epsg:6668", f"epsg:{dst_epsg}", always_xy=True)
+    transformer = Transformer.from_crs("epsg:6668", f"epsg:{dst_epsg}", always_xy=True)
     # 6668 (緯度経度座標) から、6677などの平面直角座標へ変換
     x, y = transformer.transform(float(lon), float(lat))
     return x, y

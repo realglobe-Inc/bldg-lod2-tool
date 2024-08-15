@@ -37,11 +37,7 @@ def make_image(las_path: str, bbox: tuple[float], output_dir: Union[str, None]):
     x, y, _z, r, g, b = point
     x_pos = int(np.floor((x - x_min) * 4 + 0.0001))
     y_pos = int(np.floor((y - y_min) * 4 + 0.0001))
-    image_data[x_pos, y_pos] = [
-        r / 256,
-        g / 256,
-        b / 256,
-    ]
+    image_data[x_pos, y_pos] = [r / 256, g / 256, b / 256]
 
   print(las_path)
   las_basename = os.path.basename(las_path)
@@ -67,9 +63,7 @@ def is_bbox_overlap(bbox1: tuple[float], bbox2: tuple[float]):
   return not (bbox1[2] < bbox2[0] or bbox1[0] > bbox2[2] or bbox1[3] < bbox2[1] or bbox1[1] > bbox2[3])
 
 
-def get_las_bbox(
-    las_file: str,
-) -> Union[tuple[float], None]:
+def get_las_bbox(las_file: str) -> Union[tuple[float], None]:
   """
   Get the bounding box (min_x, min_y, max_x, max_y) of the LAS file.
   """
@@ -118,12 +112,7 @@ def main():
 
   # python3 search_dsm_file_by_pos.py -21146 -34454 -21132 -34440 ~/DSM/DSM/
 
-  bbox: tuple[float] = (
-      args.min_x,
-      args.min_y,
-      args.max_x,
-      args.max_y,
-  )
+  bbox: tuple[float] = (args.min_x, args.min_y, args.max_x, args.max_y)
   matching_files = search_dsm_files(bbox, args.dsm_dir)
 
   if matching_files:

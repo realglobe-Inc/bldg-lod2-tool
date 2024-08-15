@@ -18,7 +18,7 @@ def draw_edges_on_image(rgb_image, corners, edges):
     edges (np.array): 頂点の番号の組のリスト (num of edges, 2)
 
   Returns:
-      np.array: 線が描画された画像
+    np.array: 線が描画された画像
   """
 
   # RGB画像データをBGRに変換（OpenCVはBGRを使用）
