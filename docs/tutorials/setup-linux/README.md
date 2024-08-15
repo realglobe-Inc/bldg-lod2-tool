@@ -80,20 +80,17 @@ python3 bldg-lod2-tool/src/createmodel/housemodeling/roof_edge_detection_model/t
 
 ### 建物分類用モデルの学習済みパラメーターをダウンロード
 ```
-wget https://drive.google.com/file/d/1hs-DT4Y0ZtjdV9kJ438lvAPpJcfz_dE_/view?usp=drive_link 	classifier_parameter.pkl
-mv classifier_parameter.pkl src/createmodel/data/
+wget -O src/createmodel/data/classifier_parameter.pkl https://drive.google.com/file/d/1hs-DT4Y0ZtjdV9kJ438lvAPpJcfz_dE_/view?usp=drive_link
 ```
 
 ### 屋根線検出用モデルの学習済みパラメーターをダウンロード
 ```
-wget https://drive.google.com/file/d/1QqxfS05a4T1_IdrzYle3iuBXjuyqFz-u/view?usp=drive_link roof_edge_detection_parameter.pth
-mv roof_edge_detection_parameter.pth src/createmodel/data/
+wget -O src/createmodel/data/roof_edge_detection_parameter.pth https://drive.google.com/file/d/1QqxfS05a4T1_IdrzYle3iuBXjuyqFz-u/view?usp=drive_link
 ```
 
 ### バルコニー検出用モデルの学習済みパラメーターをダウンロード
 ```
-wget https://drive.google.com/file/d/1MINHffIvcooDOrQq3E4mBvdsgWUfzIi5/view?usp=drive_link roof_edge_detection_parameter.pth
-mv roof_edge_detection_parameter.pth src/createmodel/data/
+wget -O src/createmodel/data/balcony_segmentation_parameter.pkl https://drive.google.com/file/d/1MINHffIvcooDOrQq3E4mBvdsgWUfzIi5/view?usp=drive_link
 ```
 
 ### LOD2建築物モデル自動作成のテスト用の入力データーのダウンロード
@@ -179,14 +176,12 @@ pip install –r requirement.txt # 仮想環境の開始後
 
 ### 屋根面視認性向上用モデルの学習済みパラメーターをダウンロード
 ```
-wget https://drive.google.com/file/d/1xBFAVgGeIGFsvMN6bG_Y9renLyNm46is/view?usp=drivesdk iter_280000_conv.pth
-mv iter_280000_conv.pth RoofSurface/checkpoint/
+wget -O RoofSurface/checkpoint/iter_280000_conv.pth https://drive.google.com/file/d/1xBFAVgGeIGFsvMN6bG_Y9renLyNm46is/view?usp=drivesdk
 ```
 
 ### 壁面視認性向上用モデルの学習済みパラメーターをダウンロード
 ```
-wget https://drive.google.com/file/d/14tsr1r1s6aI6fm-cX7ZfcGr-56SdiTid/view?usp=drivesdk latest_net_G_A.pth
-mv latest_net_G_A.pth WallSurface/checkpoint/
+wget -O WallSurface/checkpoint/latest_net_G_A.pth https://drive.google.com/file/d/14tsr1r1s6aI6fm-cX7ZfcGr-56SdiTid/view?usp=drivesdk
 ```
 
 ### 屋根面視認性向上開始
@@ -211,12 +206,11 @@ pip install –r requirements.txt # 仮想環境の開始後
 ```
 
 ### 事前学習モデルの学習済みパラメーターをダウンロード
-- [ブラウザからダウンロード(wget でダウンロードするエラー発生)](http://data.lip6.fr/cadene/pretrainedmodels/inceptionresnetv2-520b38e4.pth)
-- scp で inceptionresnetv2-520b38e4.pth をインスタンスにコピー
+- `~/.cache/torch/hub/checkpoints` に `1inceptionresnetv2-520b38e4.pth`
 ```
-scp ~/Downloads/inceptionresnetv2-520b38e4.pth ubuntu@xxx.xxx.xxx.xxx:~/.cache/torch/hub/checkpoints/
+wget -O ~/.cache/torch/hub/checkpoints/inceptionresnetv2-520b38e4.pth https://github.com/realglobe-Inc/DeblurGANv2/releases/download/v1.0.0/inceptionresnetv2-520b38e4.pth
 ```
-- インスタンス内部で fpn_inception.h5
+- `checkpoints/fpn_inception.h5` に fpn_inception.h5
 ```
 wget -O checkpoints/fpn_inception.h5 'https://docs.google.com/uc?export=download&id=1UXcsRVW-6KF23_TNzxw-xC0SzaMfXOaR&confirm=t' #https://drive.google.com/open?id=1UXcsRVW-6KF23_TNzxw-xC0SzaMfXOaR&authuser=0
 ```
