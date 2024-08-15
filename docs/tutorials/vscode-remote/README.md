@@ -30,4 +30,4 @@
 10. バージョン 3.9.19 の Python を選択
 11. アクセス先VSCodeで Pylance 拡張をインストール
 12. アクセス先VSCodeで Pylint 拡張をインストール
-13. アクセス先VSCodeで Black Formatter 拡張をインストール
+13. アクセス先VSCodeで autopep8 拡張をインストール

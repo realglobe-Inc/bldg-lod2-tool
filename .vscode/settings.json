@@ -1,9 +1,17 @@
 {
   "[python]": {
-    "editor.defaultFormatter": "ms-python.black-formatter",
+    "editor.defaultFormatter": "ms-python.autopep8",
     "editor.formatOnSave": true,
-    "editor.codeActionsOnSave": {
-      "source.organizeImports": true
-    },
-  }
+  },
+  "autopep8.args": [
+    "--indent-size=2",
+    "--max-line-length=120",
+    // E111 indentation 4 以外も許容
+    // E114 indentation 4 以外も許容
+    // E221 a = 10 # hogehoge みたいなコメントを許容
+    // E402 import がトップにないのを許容
+    // E501 line 80文字以上許容
+    // E701 if hogehoge: return True みたいのを許容
+    "--ignore=E111, E114, E221, E402, E501, E701"
+  ]
 }
