@@ -3,8 +3,32 @@ import argparse
 from typing import Union
 
 import numpy as np
+from numpy.typing import NDArray
 from PIL import Image
 import laspy
+
+
+def compute_slope(z1: float, z2: float, distance: float):
+  return np.degrees(np.arctan(abs(z1 - z2) / distance))
+
+
+def mark_wall_point(
+    image_data: NDArray[np.uint8],
+    x_pos: float,
+    y_pos: float,
+    z_pos_1: float,
+    z_pos_2: float,
+    xy_distance_a_to_b: float,
+    wall_degree: float,
+):
+  # mark only high point as wall point
+  if z_pos_1 < z_pos_2: return
+
+  # mark only over wall_degree
+  slope_degree = compute_slope(z_pos_1, z_pos_2, xy_distance_a_to_b)
+  if (slope_degree <= wall_degree): return
+
+  image_data[x_pos, y_pos] = [255, 0, 0]
 
 
 def make_image(las_path: str, bbox: tuple[float], output_dir: Union[str, None]):
@@ -13,7 +37,10 @@ def make_image(las_path: str, bbox: tuple[float], output_dir: Union[str, None]):
   """
   las = laspy.read(las_path)
 
+  # Dot XY grid distance of DSM File
   grid_distance = 0.25
+  # Wall point Decision with between two points
+  wall_degree = 60
 
   x_min, y_min, x_max, y_max = bbox
   mask = (las.x >= x_min) & (las.x <= x_max) & (las.y >= y_min) & (las.y <= y_max)
@@ -34,17 +61,47 @@ def make_image(las_path: str, bbox: tuple[float], output_dir: Union[str, None]):
   height = int(np.floor(y_max / grid_distance - y_min / grid_distance + 0.0001))
 
   image_data = np.zeros((width, height, 3), dtype=np.uint8)
+  depth_data = np.zeros((width, height), dtype=np.float_)
 
   for point in points:
-    x, y, _z, r, g, b = point
+    x, y, z, r, g, b = point
     x_pos = int(np.floor((x - x_min) / grid_distance + 0.0001))
     y_pos = int(np.floor((y - y_min) / grid_distance + 0.0001))
     image_data[x_pos, y_pos] = [r / 256, g / 256, b / 256]
+    depth_data[x_pos, y_pos] = z
+
+  for x_pos, depth_data_y in enumerate(depth_data):
+    for y_pos, z_pos_1 in enumerate(depth_data_y):
+      if x_pos > 0:
+        mark_wall_point(
+            image_data,
+            x_pos, y_pos, z_pos_1, depth_data[x_pos - 1, y_pos],
+            grid_distance, wall_degree,
+        )
+      if x_pos < len(depth_data) - 1:
+        mark_wall_point(
+            image_data,
+            x_pos, y_pos, z_pos_1, depth_data[x_pos + 1, y_pos],
+            grid_distance, wall_degree,
+        )
+      if y_pos > 0:
+        mark_wall_point(
+            image_data,
+            x_pos, y_pos, z_pos_1, depth_data[x_pos, y_pos - 1],
+            grid_distance, wall_degree,
+        )
+      if y_pos < len(depth_data_y) - 1:
+        mark_wall_point(
+            image_data,
+            x_pos, y_pos, z_pos_1, depth_data[x_pos, y_pos + 1],
+            grid_distance, wall_degree,
+        )
 
   print(las_path)
+
   las_basename = os.path.basename(las_path)
   las_basename_without_ext, _ = os.path.splitext(las_basename)
-  image_basename = f"{las_basename_without_ext}_{x_min},{y_min},{x_max},{y_max}.jpg"
+  image_basename = f"{las_basename_without_ext}_wall_point_{wall_degree}_{x_min},{y_min},{x_max},{y_max}.jpg"
   image = Image.fromarray(image_data, "RGB")
   if output_dir is not None:
     output_dir = os.path.expanduser(output_dir)
@@ -112,7 +169,7 @@ def main():
 
   args = parser.parse_args()
 
-  # python3 search_dsm_file_by_pos.py -21146 -34454 -21132 -34440 ~/DSM/DSM/
+  # python3 show_wall_point_as_jpg.py -21330 -34630 -21030 -34330 ~/DSM/DSM/
 
   bbox: tuple[float] = (args.min_x, args.min_y, args.max_x, args.max_y)
   matching_files = search_dsm_files(bbox, args.dsm_dir)
