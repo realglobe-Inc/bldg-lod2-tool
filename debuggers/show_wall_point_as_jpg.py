@@ -3,44 +3,32 @@ import argparse
 from typing import Union
 
 import numpy as np
-from numpy.typing import NDArray
 from PIL import Image
 import laspy
 
 
-def compute_slope(z1: float, z2: float, distance: float):
-  return np.degrees(np.arctan(abs(z1 - z2) / distance))
+def is_wall_point(z_pos_1: float, z_pos_2s: list[float], wall_meter: float):
+  """
+  Check DSM point is wall point
+  """
+  for z_pos_2 in z_pos_2s:
+    # mark only high point as wall point
+    if (z_pos_1 - z_pos_2) > wall_meter: return True
+
+  return False
 
 
-def mark_wall_point(
-    image_data: NDArray[np.uint8],
-    x_pos: float,
-    y_pos: float,
-    z_pos_1: float,
-    z_pos_2: float,
-    xy_distance_a_to_b: float,
-    wall_degree: float,
+def make_image(
+    las_path: str,
+    bbox: tuple[float],
+    output_dir: Union[str, None],
+    grid_distance: float,
+    wall_meter: float,
 ):
-  # mark only high point as wall point
-  if z_pos_1 < z_pos_2: return
-
-  # mark only over wall_degree
-  slope_degree = compute_slope(z_pos_1, z_pos_2, xy_distance_a_to_b)
-  if (slope_degree <= wall_degree): return
-
-  image_data[x_pos, y_pos] = [255, 0, 0]
-
-
-def make_image(las_path: str, bbox: tuple[float], output_dir: Union[str, None]):
   """
   Make Image with DSM (LAS) File
   """
   las = laspy.read(las_path)
-
-  # Dot XY grid distance of DSM File
-  grid_distance = 0.25
-  # Wall point Decision with between two points
-  wall_degree = 60
 
   x_min, y_min, x_max, y_max = bbox
   mask = (las.x >= x_min) & (las.x <= x_max) & (las.y >= y_min) & (las.y <= y_max)
@@ -72,36 +60,20 @@ def make_image(las_path: str, bbox: tuple[float], output_dir: Union[str, None]):
 
   for x_pos, depth_data_y in enumerate(depth_data):
     for y_pos, z_pos_1 in enumerate(depth_data_y):
-      if x_pos > 0:
-        mark_wall_point(
-            image_data,
-            x_pos, y_pos, z_pos_1, depth_data[x_pos - 1, y_pos],
-            grid_distance, wall_degree,
-        )
-      if x_pos < len(depth_data) - 1:
-        mark_wall_point(
-            image_data,
-            x_pos, y_pos, z_pos_1, depth_data[x_pos + 1, y_pos],
-            grid_distance, wall_degree,
-        )
-      if y_pos > 0:
-        mark_wall_point(
-            image_data,
-            x_pos, y_pos, z_pos_1, depth_data[x_pos, y_pos - 1],
-            grid_distance, wall_degree,
-        )
-      if y_pos < len(depth_data_y) - 1:
-        mark_wall_point(
-            image_data,
-            x_pos, y_pos, z_pos_1, depth_data[x_pos, y_pos + 1],
-            grid_distance, wall_degree,
-        )
+      z_pos_2s = []
+      if x_pos > 0: z_pos_2s.append(depth_data[x_pos - 1, y_pos])
+      if x_pos < len(depth_data) - 1: z_pos_2s.append(depth_data[x_pos + 1, y_pos])
+      if y_pos > 0: z_pos_2s.append(depth_data[x_pos, y_pos - 1])
+      if y_pos < len(depth_data_y) - 1: z_pos_2s.append(depth_data[x_pos, y_pos + 1])
+
+      if is_wall_point(z_pos_1, z_pos_2s, wall_meter):
+        image_data[x_pos, y_pos] = [255, 0, 0]
 
   print(las_path)
 
   las_basename = os.path.basename(las_path)
   las_basename_without_ext, _ = os.path.splitext(las_basename)
-  image_basename = f"{las_basename_without_ext}_wall_point_{wall_degree}_{x_min},{y_min},{x_max},{y_max}.jpg"
+  image_basename = f"{las_basename_without_ext}_wall_point_{wall_meter}_{x_min},{y_min},{x_max},{y_max}.jpg"
   image = Image.fromarray(image_data, "RGB")
   if output_dir is not None:
     output_dir = os.path.expanduser(output_dir)
@@ -166,6 +138,8 @@ def main():
   parser.add_argument("max_y", type=float, help="Maximum Y coordinate")
   parser.add_argument("dsm_dir", type=str, help="Directory containing DSM (LAS) files")
   parser.add_argument("--output_dir", "-o", type=str, help="Optional directory for output image")
+  parser.add_argument("--grid_distance", "-g", type=float, default=0.25, help="Dot XY grid distance of DSM File")
+  parser.add_argument("--wall_meter", "-w", type=float, default=1, help="Decision for mark as Wall")
 
   args = parser.parse_args()
 
@@ -176,7 +150,7 @@ def main():
 
   if matching_files:
     for file in matching_files:
-      make_image(file, bbox, args.output_dir)
+      make_image(file, bbox, args.output_dir, args.grid_distance, args.wall_meter)
   else:
     print("No matching LAS files found.")
 
