@@ -105,22 +105,22 @@ mkdir -p ~/Auto-Create-bldg-lod2-tool-tutorial
 unzip ~/Auto-Create-bldg-lod2-tool-tutorial.zip -d ~/Auto-Create-bldg-lod2-tool-tutorial
 ```
 
-### LOD2建築物モデル自動作成パラメーター
-param.json
+### LOD2建築物モデル自動作成パラメーター修正
+~/AutoCreateLod2_tutorial/LOD2Creator_tutorial/param.json
 ```
 {
   "LasCoordinateSystem": 9,
-  "DsmFolderPath": "/home/ubuntu/AutoCreateLod2_tutorial/LOD2Creator_tutorial/dataset/DSM",
+  "DsmFolderPath": "~/AutoCreateLod2_tutorial/LOD2Creator_tutorial/dataset/DSM",
   "LasSwapXY": false,
-  "CityGMLFolderPath": "/home/ubuntu/AutoCreateLod2_tutorial/LOD2Creator_tutorial/dataset/CityGML",
-  "TextureFolderPath": "/home/ubuntu/AutoCreateLod2_tutorial/LOD2Creator_tutorial/dataset/RawImage",
+  "CityGMLFolderPath": "~/AutoCreateLod2_tutorial/LOD2Creator_tutorial/dataset/CityGML",
+  "TextureFolderPath": "~/AutoCreateLod2_tutorial/LOD2Creator_tutorial/dataset/RawImage",
   "RotateMatrixMode": 0,
-  "ExternalCalibElementPath": "/home/ubuntu/AutoCreateLod2_tutorial/LOD2Creator_tutorial/dataset/ExCalib/ExCalib.txt",
-  "CameraInfoPath": "/home/ubuntu/AutoCreateLod2_tutorial/LOD2Creator_tutorial/dataset/CamInfo/CamInfo.txt",
-  "OutputFolderPath": "/home/ubuntu/AutoCreateLod2_tutorial/output",
+  "ExternalCalibElementPath": "~/AutoCreateLod2_tutorial/LOD2Creator_tutorial/dataset/ExCalib/ExCalib.txt",
+  "CameraInfoPath": "~/AutoCreateLod2_tutorial/LOD2Creator_tutorial/dataset/CamInfo/CamInfo.txt",
+  "OutputFolderPath": "~/AutoCreateLod2_tutorial/output",
   "OutputOBJ": false,
   "OutputTexture": true,
-  "OutputLogFolderPath": "/home/ubuntu/AutoCreateLod2_tutorial/output",
+  "OutputLogFolderPath": "~/AutoCreateLod2_tutorial/output",
   "DebugLogOutput": false,
   "PhaseConsistency": {
     "DeleteErrorObject": true,
@@ -134,6 +134,12 @@ param.json
   ]
 }
 ```
+
+### LOD2建築物モデル自動作成開始
+```
+python3 AutoCreateLod2.py ~/AutoCreateLod2_tutorial/LOD2Creator_tutorial/param.json
+```
+
 
 #### 必須パラメーター
 | No |	キー名 |	値形式 | 説明 |
@@ -181,7 +187,7 @@ wget -O RoofSurface/checkpoint/iter_280000_conv.pth https://drive.google.com/fil
 
 ### 壁面視認性向上用モデルの学習済みパラメーターをダウンロード
 ```
-wget -O WallSurface/checkpoint/latest_net_G_A.pth https://drive.google.com/file/d/14tsr1r1s6aI6fm-cX7ZfcGr-56SdiTid/view?usp=drivesdk
+wget -O WallSurface/checkpoint/latest_net_G_A.pth https://github.com/realglobe-Inc/pytorch-CycleGAN-and-pix2pix/releases/download/bldg-lod2-tool-v2.0.0/latest_net_G_A.pth
 ```
 
 ### 屋根面視認性向上開始
@@ -191,7 +197,7 @@ python3 RoofSurface/CreateSuperResolution.py param.json
 
 ### 壁面視認性向上開始
 ```
-python3 SuperResolution/WallSurface/main.py param.json
+python3 WallSurface/main.py param.json
 ```
 
 
@@ -285,3 +291,62 @@ pip install –r requirements.txt # 仮想環境の開始後
 ```
 python3 Atlas_Prot.py param.json
 ```
+
+
+## 壁面視認性向上用モデルの学習済みパラメーター latest_net_G_A.pth の学習手順
+
+### 壁面視認性向上ツールの学習コード clone
+```
+cd ~
+git clone https://github.com/realglobe-Inc/pytorch-CycleGAN-and-pix2pix
+cd pytorch-CycleGAN-and-pix2pix
+```
+
+### [python 仮想環境/開始](#python-仮想環境の設定方法)
+
+### 学習データーダウンロード
+```
+wget -O datasets/d10.zip https://github.com/realglobe-Inc/pytorch-CycleGAN-and-pix2pix/releases/download/bldg-lod2-tool-v2.0.0/d10.zip
+unzip datasets/d10.zip -d datasets/d10/
+rm datasets/d10.zip
+```
+
+### CycleGAN B画像を選択
+- B画像として高画質化済みの画像を選択する場合
+```
+cp -r datasets/d10/train_d10B_deblured/ datasets/d10/train_d10B/
+```
+
+- B画像として元の画像を選択する場合
+```
+cp -r datasets/d10/train_d10B_backup/ datasets/d10/train_d10B/
+```
+
+- 学習するデーターを追加する場合
+  - datasets/d10/train_d10B_backup/ に B画像追加
+  - datasets/d10/train_d10A/ に A画像追加
+  - [画質向上ツール](#画質向上ツール)で `datasets/d10/train_d10B_backup/` の画質向上
+  - 画質向上された画像を [画質のエッジシャープ化ツール](#画質のエッジシャープ化ツール)で `datasets/d10/train_d10B_backup/` ジシャープ化
+  - ジシャープ化された画像を `datasets/d10/train_d10B/` にコピー
+
+
+### 依存ライブラリのインストール
+```
+pip install –r requirements.txt # 仮想環境の開始後
+```
+
+### 学習開始
+- 実行
+```
+python3 train.py --dataroot ./datasets/d10 --name CycleGAN_d10 --model cycle_gan --direction AtoB --phase train_d10 --save_epoch_freq 100 --n_epochs 500 --input_nc 3 --output_nc 3
+```
+
+- `checkpoints/CycleGAN_d10_old/latest_net_G_A.pth` が学習済みパラメーター
+
+### テスト開始
+- 実行
+```
+python3 test.py --dataroot ~/CycleGAN/datasets/d10 --name CycleGAN_d10 --model cycle_gan --direction AtoB --phase test_d10 --epoch  latest --input_nc 3 --output_nc 3
+```
+
+- `results` から結果確認
