@@ -1,5 +1,4 @@
 import os
-import json
 import argparse
 from glob import glob
 from pathlib import Path
@@ -7,42 +6,56 @@ from pathlib import Path
 from tqdm import tqdm
 from PIL import Image, ImageFilter
 
-def main(img_pattern='input/*', out_dir='output/'):
-    def sorted_glob(pattern):
-        return sorted(glob(pattern))
 
-    imgs = sorted_glob(img_pattern)
-    os.makedirs(out_dir, exist_ok=True)
+def fix_relative_path(path):
+  if os.path.isabs(path):
+    return path
+  else:
+    return os.path.join('.', os.path.relpath(path, start=Path('.')))
 
 
-    pbar = tqdm(total=100, desc="UnsharpMask Processing", unit="item")
-    for img_index, img_path in enumerate(imgs):
-        # 画像を読み込む
-        image = Image.open(img_path)
+def sorted_glob(patterns):
+  files = []
+  for pattern in patterns:
+    files.extend(glob(pattern, recursive=True))
+  return sorted(files)
 
-        # アンシャープマスクを適用
-        sharpened_image = image.filter(ImageFilter.UnsharpMask(radius=2, percent=150, threshold=3))
 
-        # シャープ化した画像を保存
-        basename = os.path.basename(img_path)
-        save_path = os.path.join(out_dir, basename)
-        sharpened_image.save(save_path)
+def main(input_dir='./input/', out_dir='./output/'):
+  img_patterns = [
+      os.path.join(os.path.expanduser(input_dir), '**', '*.jpg'),
+      os.path.join(os.path.expanduser(input_dir), '**', '*.png')
+  ]
+  imgs = sorted_glob(img_patterns)
+  os.makedirs(out_dir, exist_ok=True)
 
-        partial_progress = 100 / len(imgs)
-        pbar.update(partial_progress)
-    pbar.close()
+  pbar = tqdm(total=len(imgs), desc="UnsharpMask Processing", unit="item")
+  for img_path in imgs:
+    image = Image.open(img_path)
+
+    sharpened_image = image.filter(ImageFilter.UnsharpMask(radius=2, percent=150, threshold=3))
+    relative_path = os.path.relpath(img_path, start=Path(input_dir))
+    save_path = os.path.join(out_dir, relative_path)
+    os.makedirs(os.path.dirname(save_path), exist_ok=True)
+
+    sharpened_image.save(save_path)
+    pbar.update(1)
+
+  pbar.close()
+
 
 if __name__ == '__main__':
-    # Parse command line arguments
-    parser = argparse.ArgumentParser()
-    parser.add_argument("param_file", type=Path)
-    args = parser.parse_args()
+  # Parse command line arguments
+  parser = argparse.ArgumentParser()
+  parser.add_argument(
+      '-i', '--input', type=str, default='input', help='Input image or folder'
+  )
+  parser.add_argument(
+      '-o', '--output', type=str, default='output', help='Output folder'
+  )
 
-    # Load parameter information from JSON file
-    with args.param_file.open("rt") as pf:
-        param = json.load(pf)
+  args = parser.parse_args()
+  args.input = os.path.expanduser(fix_relative_path(args.input))
+  args.output = os.path.expanduser(fix_relative_path(args.output))
 
-    main(
-        img_pattern=os.path.join(os.path.expanduser(param['FilePath']['InputImagePath']), '*'),
-        out_dir=os.path.expanduser(param['FilePath']['OutputImagePath'])
-    )
+  main(input_dir=args.input, out_dir=args.output)
