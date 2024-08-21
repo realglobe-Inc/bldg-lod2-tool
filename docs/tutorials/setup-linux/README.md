@@ -223,7 +223,7 @@ wget -O checkpoints/fpn_inception.h5 'https://docs.google.com/uc?export=download
 
 ### 画質向上開始
 ```
-python3 predict.py param.json
+python3 predict.py -i input -o output -c checkpoints/fpn_inception.h5
 ```
 
 
@@ -239,7 +239,7 @@ pip install –r requirements.txt # 仮想環境の開始後
 
 ### 画質のエッジシャープ化ツール実行
 ```
-python3 UnsharpMask.py param.json
+python3 UnsharpMask.py -i input -o output
 ```
 
 
