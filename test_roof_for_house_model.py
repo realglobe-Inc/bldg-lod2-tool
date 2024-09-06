@@ -3,7 +3,8 @@ import numpy as np
 import open3d as o3d
 
 from numpy.typing import NDArray
-from shapely.geometry import Polygon
+from shapely.geometry import Point, Polygon
+from scipy.spatial import Delaunay
 
 from src.thirdparty.plateaupy.thirdparty.earcutpython.earcut import earcut
 from src.createmodel.housemodeling.house_model import HouseModel
@@ -56,117 +57,136 @@ def prepare_earcut_data(floor_vertices, holes):
   return flattened, hole_indices[:-1]  # 最後のインデックスは不要
 
 
-def auto_triangulate(vertices):
-  """ 自動的に頂点から三角形インデックスを生成する """
-  flattened = vertices[:, :2].flatten()  # Z座標を無視
-  triangles_indices = earcut.earcut(flattened, dim=2)
-  return np.array(triangles_indices).reshape((-1, 3))
+def calculate_centroid(triangle, vertices):
+  """Calculate the centroid of a triangle given by indices of its vertices."""
+  vertex_coords = np.array([vertices[idx] for idx in triangle])
+  centroid = np.mean(vertex_coords, axis=0)
+  return centroid
+
+
+def is_point_in_polygon(
+    point: list[float],
+    polygon: list[list[float]],
+    holes: list[list[list[float]]] = []
+):
+  """点が多角形内にあるかどうかを判断する簡易的な方法"""
+  poly = Polygon(polygon, holes)
+  return poly.contains(Point(point))
+
+
+def calculate_normal(vertices):
+  """頂点から平面の法線を計算"""
+  v1, v2, v3 = vertices[:3]
+  return np.cross(v2 - v1, v3 - v1)
+
+
+def project_to_best_plane(vertices_3d):
+  """法線に基づいて最適な平面に頂点を投影し、距離歪みを補正"""
+  normal = calculate_normal(vertices_3d)
+  normal_abs = np.abs(normal / np.linalg.norm(normal))
+
+  # 距離歪みを最小化するためのスケーリング係数
+  scale_factors = np.sqrt(1 - normal_abs**2)
+
+  if normal[2] >= normal[1] and normal[2] >= normal[0]:  # XY平面
+    scaled_vertices_2d = vertices_3d[:, :2] * scale_factors[:2]
+  elif normal[0] >= normal[1] and normal[0] >= normal[2]:  # YZ平面
+    scaled_vertices_2d = vertices_3d[:, 1:] * scale_factors[1:]
+  else:  # XZ平面
+    scaled_vertices_2d = vertices_3d[:, [0, 2]] * scale_factors[[0, 2]]
+
+  return scaled_vertices_2d
+
+
+def auto_triangulate(vertices_3d):
+  """投影された2D座標でDelaunay三角形分割を行う"""
+  scaled_vertices_2d = project_to_best_plane(vertices_3d)
+  delaunay = Delaunay(scaled_vertices_2d)  # Delaunay 三角形分割を使用
+  triangles = delaunay.simplices
+
+  # 結果としての三角形リスト
+  filtered_triangles = []
+  for triangle in triangles:
+    # 三角形の重心がポリゴン内部にあるか
+    centroid = calculate_centroid(triangle, scaled_vertices_2d)
+    if is_point_in_polygon(centroid, scaled_vertices_2d):
+      filtered_triangles.append(triangle)
+
+  return filtered_triangles
 
 
 poligon_points_list: list[list[list[float]]] = []
 
 # 1階壁線
-floor1_vertices = np.array([[0, 0, 1.5], [10, 0, 1.7], [16, 6, 2], [10, 10, 1.7], [0, 10, 1.5]])
-floor1_height = np.min(floor1_vertices[:, 2])
-floor1_polygon = floor1_vertices.copy()
-floor1_polygon[:, 2] = floor1_height
-poligon_points_list.append(floor1_polygon.tolist())
+roof_floor1_vertices = np.array([[0, 0, 1.5], [10, 0, 1.7], [16, 6, 2], [10, 10, 1.7], [0, 10, 1.5]])
+roof_floor1_height = np.min(roof_floor1_vertices[:, 2])
+roof_floor1_polygon = roof_floor1_vertices.copy()
+roof_floor1_polygon[:, 2] = roof_floor1_height
+poligon_points_list.append(roof_floor1_polygon.tolist())
 
 # 2階壁線
-floor2_walls: list[list[list[float]]] = [
+roof_floor2_walls: list[list[list[float]]] = [
     [[1, 1, 4.5], [3, 1, 4.7], [3, 3, 5], [2, 2.5, 4.7], [1, 3, 4.5]],
-    # [[6, 1, 4.5], [8, 1, 4.7], [8, 3, 5], [7, 2.5, 4.7], [6, 3, 4.5]]
+    [[6, 1, 4.5], [8, 1, 4.7], [8, 3, 5], [7, 2.5, 4.7], [6, 3, 4.5]]
 ]
 
-floor2_objects: list[RoofFloorObject] = []
-for floor2_wall in floor2_walls:
-  floor2_vertices = np.array(floor2_wall)
-  floor2_height = np.min(floor2_vertices[:, 2])
-  floor2_vertices_3d = np.hstack([
-      floor2_vertices[:, :2], np.full((len(floor2_vertices), 1), floor2_height)
+roof_floor2_objects: list[RoofFloorObject] = []
+for roof_floor2_wall in roof_floor2_walls:
+  roof_floor2_vertices = np.array(roof_floor2_wall)
+  roof_floor2_height = np.min(roof_floor2_vertices[:, 2])
+  roof_floor2_vertices_3d = np.hstack([
+      roof_floor2_vertices[:, :2], np.full((len(roof_floor2_vertices), 1), roof_floor2_height)
   ])
-  poligon_points_list.append(floor2_vertices_3d.tolist())
-  triangles_indices_floor2 = auto_triangulate(floor2_vertices)
-  floor2_mesh = create_mesh(floor2_vertices_3d, triangles_indices_floor2)
-  floor2_objects.append(RoofFloorObject(floor2_vertices, floor2_vertices_3d, floor2_height, floor2_mesh))
+  poligon_points_list.append(roof_floor2_vertices_3d.tolist())
+  triangles_indices_roof_floor2 = auto_triangulate(roof_floor2_vertices_3d)
 
-# Earcutで三角形化の準備
-flattened, hole_indices = prepare_earcut_data(
-    floor1_vertices[:, :2], [floor2_object.vertices[:, :2] for floor2_object in floor2_objects]
-)
-tri_indices = earcut.earcut(flattened, hole_indices, 2)
-vertices_3d = np.hstack([np.array(flattened).reshape(-1, 2), np.full((len(flattened) // 2, 1), floor1_height)])
-triangles = np.array(tri_indices).reshape((-1, 3))
+  roof_floor2_mesh = create_mesh(roof_floor2_vertices_3d, triangles_indices_roof_floor2)
+  roof_floor2_objects.append(RoofFloorObject(roof_floor2_vertices, roof_floor2_vertices_3d, roof_floor2_height, roof_floor2_mesh))
+
+
+# 穴のある多角形データ
+outer_ring = np.array(roof_floor1_vertices[:, :2])  # 外部の境界
+holes_2d = [roof_floor2_object.vertices[:, :2] for roof_floor2_object in roof_floor2_objects]  # 内部の境界（穴）
+holes_3d = [np.hstack([hole, np.full((hole.shape[0], 1), roof_floor1_height)]) for hole in holes_2d]
+
+# 穴の頂点も含めてDelaunay分割
+vertices_2d = np.vstack([outer_ring, *holes_2d])
+vertices_3d = np.vstack([roof_floor1_polygon, *holes_3d])
+delaunay = Delaunay(vertices_2d)
+
+# 穴の内部にある三角形をフィルタリング
+triangles = []
+for simplex in delaunay.simplices:
+  centroid = np.mean(vertices_2d[simplex], axis=0)
+  if is_point_in_polygon(centroid, outer_ring, holes_2d):
+    triangles.append(simplex)
+
 
 # 1階の床のメッシュを生成
-floor_mesh = create_mesh(vertices_3d, triangles)
+roof_floor1_mesh = create_mesh(vertices_3d, triangles)
 
 # 壁の生成
-meshes = [floor_mesh, *[floor2_object.mesh for floor2_object in floor2_objects]]
+roof_meshes = [roof_floor1_mesh, *[roof_floor2_object.mesh for roof_floor2_object in roof_floor2_objects]]
 
-for floor2_object in floor2_objects:
-  for i in range(len(floor2_vertices)):
-    next_i = (i + 1) % len(floor2_vertices)
+for roof_floor2_object in roof_floor2_objects:
+  for i in range(len(roof_floor2_vertices)):
+    next_i = (i + 1) % len(roof_floor2_vertices)
     wall_vertices = [
-        floor2_object.vertices_3d[i],
-        floor2_object.vertices_3d[next_i],
-        np.append(floor2_object.vertices_3d[next_i][:2], floor1_height),
-        np.append(floor2_object.vertices_3d[i][:2], floor1_height),
+        roof_floor2_object.vertices_3d[i],
+        roof_floor2_object.vertices_3d[next_i],
+        np.append(roof_floor2_object.vertices_3d[next_i][:2], roof_floor1_height),
+        np.append(roof_floor2_object.vertices_3d[i][:2], roof_floor1_height),
     ]
     poligon_points_list.append(wall_vertices)
     wall_faces = [[0, 1, 2], [0, 2, 3]]
     wall_mesh = create_mesh(np.array(wall_vertices), wall_faces)
-    meshes.append(wall_mesh)
+    roof_meshes.append(wall_mesh)
 
 
 # 全てのメッシュを合体
-combined_mesh = meshes[0]
-for mesh in meshes[1:]:
-  combined_mesh += mesh
-
-
-# 全頂点を抽出
-all_vertices = np.asarray(combined_mesh.vertices)
-print("All Vertices:")
-print(all_vertices)
-
-# 全ポリゴン（三角形）を抽出
-all_triangles = np.asarray(combined_mesh.triangles)
-print("All Polygons (Triangles):")
-print(all_triangles)
-
-# 頂点の座標リストを出力
-vertices_list = all_vertices.tolist()
-print("Vertices List:")
-print(vertices_list)
-
-# 三角形のインデックスリストを出力
-triangles_index_list = all_triangles.tolist()
-print("Triangles Index List:")
-print(triangles_index_list)
+combined_roof_mesh = roof_meshes[0]
+for mesh in roof_meshes[1:]:
+  combined_roof_mesh += mesh
 
 # 正解な屋根形状
-o3d.io.write_triangle_mesh("test_roof_for_house_model_correct.obj", combined_mesh, write_vertex_normals=True)
-
-point_index_finder = PointIndexFinder(all_vertices)
-
-# 一致するインデックスを見つける
-outer_polygon = [point_index_finder.find(floor1_vertice) for floor1_vertice in floor1_polygon]
-
-inner_polygons: list[list[int]] = []
-for poligon_points in poligon_points_list:
-  inner_polygons.append([point_index_finder.find(poligon_point) for poligon_point in poligon_points])
-
-# テスト結果は test_roof_for_house_model_result.obj
-model = HouseModel(id='test_roof_for_house_model_result', shape=Polygon(floor1_vertices[:, :2]))
-model.create_model_surface(
-    point_cloud=all_vertices,
-    points_xy=all_vertices[:, :2],
-    inner_polygons=inner_polygons,
-    outer_polygon=outer_polygon,
-    ground_height=0,
-    balcony_flags=[False for _ in all_triangles]
-)
-
-model.simplify(threshold=5)
-model.rectify()
+o3d.io.write_triangle_mesh("test_roof_for_house_model_correct.obj", combined_roof_mesh, write_vertex_normals=True)

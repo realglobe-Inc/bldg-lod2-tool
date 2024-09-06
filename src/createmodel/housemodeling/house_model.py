@@ -267,15 +267,8 @@ class HouseModel:
         point_cloud,
         ground_height,
     )
-    balcony_height: float = max(
-        ground_height + 0.1,
-        min(heights)
-    )
-
-    points_xyz = np.concatenate([
-        points_xy,
-        np.array(heights)[:, np.newaxis],
-    ], axis=1)
+    balcony_height: float = max(ground_height + 0.1, min(heights))
+    points_xyz = np.concatenate([points_xy, np.array(heights)[:, np.newaxis]], axis=1)
 
     # roof
     for triangle, polygon_idx in roof_triangles:
