@@ -13,6 +13,9 @@ __pycache__
 # 中間結果
 /temp
 
+# デバッグ
+/debug
+
 # 環境変数設定
 /bldg-lod2-tool
 /tools/Atlas_Prot/Atlas_Prot

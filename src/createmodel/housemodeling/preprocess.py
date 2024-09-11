@@ -1,11 +1,13 @@
+import os
+from pathlib import Path
 from typing import Final, Optional
+import math
+
 import numpy as np
 import numpy.typing as npt
 from PIL import Image
-import cv2
 import shapely.geometry as geo
 from shapely.geometry import Point
-import math
 from sklearn.neighbors import NearestNeighbors
 
 from .coordinates_converter import CoordConverterForCartesianAndImagePos
@@ -25,6 +27,8 @@ class Preprocess:
       grid_size: float,
       image_size: int,
       expand_rate: Optional[float] = None,
+      wall_height_threshold: float = 0.5,
+      building_id: Optional[str] = None,
   ) -> None:
     """コンストラクタ
 
@@ -37,6 +41,8 @@ class Preprocess:
     self._grid_size = grid_size
     self._image_size = image_size
     self._expand_rate = expand_rate if expand_rate is not None else 1.0
+    self._wall_height_threshold = wall_height_threshold
+    self._building_id = building_id
 
   def preprocess(
       self,
@@ -56,6 +62,8 @@ class Preprocess:
       NDArray[np.uint8]: (image_size, image_size, 3)のRGB画像データ
       NDArray[np.uint8]: (image_size, image_size)の高さのグレースケール画像データ
     """
+
+    wall_points = []
 
     if False:
       points = cloud.get_points().copy()
@@ -105,6 +113,7 @@ class Preprocess:
       nn.fit(pc_xyz[:, 0:2])
       inds = nn.kneighbors(xy, return_distance=False)[:, 0]
 
+      wall_xyz = pc_xyz[inds]
       rgb_image = pc_rgb[inds] / 256
 
       lower, upper = ground_height - 5, ground_height + 25
@@ -113,30 +122,53 @@ class Preprocess:
       for i, xy_ in enumerate(xy):
         p = Point(xy_[0], xy_[1])
         if not footprint.contains(p):
+          wall_xyz[i] = 0
           rgb_image[i] = 255
           depth_image[i] = 255
 
+      wall_xyz = wall_xyz.reshape(height, width, 3).astype(np.float_)
       rgb_image = rgb_image.reshape(height, width, 3).astype(np.uint8)
       depth_image = depth_image.reshape(height, width).astype(np.uint8)
 
+      rgb_image_debug = rgb_image.copy()
+      for i, wall_xyz_j in enumerate(wall_xyz):
+        for j, (x, y, z1) in enumerate(wall_xyz_j):
+          if (x == 0 and y == 0 and z1 == 0):
+            continue
+
+          z2s = []
+          if i > 0:
+            z2s.append(wall_xyz[i - 1, j][2])
+          if i < len(wall_xyz[i]) - 1:
+            z2s.append(wall_xyz[i + 1, j][2])
+          if j > 0:
+            z2s.append(wall_xyz[i, j - 1][2])
+          if j < len(wall_xyz[i]) - 1:
+            z2s.append(wall_xyz[i, j + 1][2])
+
+          if self._is_wall_point(z1, z2s):
+            wall_points.append([x, y, z1])
+            rgb_image_debug[i][j] = [255, 0, 0]
+
+      Path('debug').mkdir(parents=True, exist_ok=True)
+      image_debug = Image.fromarray(rgb_image_debug, "RGB")
+      image_path = os.path.join('debug', f'{self._building_id}.jpg')
+      image_debug.save(image_path)
+      print(image_path)
+
     # 画像を拡大
     if self._expand_rate != 1:
-      expanded_size = (
-          round(width * self._expand_rate),
-          round(height * self._expand_rate),
-      )
-      rgb_image = np.array(
-          Image.fromarray(rgb_image).resize(expanded_size), dtype=np.uint8)
+      expanded_size = (round(width * self._expand_rate), round(height * self._expand_rate))
+      rgb_image = np.array(Image.fromarray(rgb_image).resize(expanded_size), dtype=np.uint8)
       depth_image = np.array(
-          Image.fromarray(depth_image, 'L').resize(expanded_size), dtype=np.uint8)
+          Image.fromarray(depth_image, 'L').resize(expanded_size), dtype=np.uint8
+      )
 
       width, height = expanded_size
 
     # モデル入力用の正方形画像に変換(余白は白で埋める)
-    square_rgb_image = np.full((self._image_size, self._image_size, 3),
-                               255, dtype=np.uint8)
-    square_depth_image = np.full((self._image_size, self._image_size),
-                                 255, dtype=np.uint8)
+    square_rgb_image = np.full((self._image_size, self._image_size, 3), 255, dtype=np.uint8)
+    square_depth_image = np.full((self._image_size, self._image_size), 255, dtype=np.uint8)
 
     top = (self._image_size - height) // 2
     left = (self._image_size - width) // 2
@@ -144,4 +176,14 @@ class Preprocess:
     square_rgb_image[top:top + height, left:left + width] = rgb_image
     square_depth_image[top:top + height, left:left + width] = depth_image
 
-    return square_rgb_image, square_depth_image
+    return square_rgb_image, square_depth_image, wall_points
+
+  def _is_wall_point(self, z1: float, z2s: list[float]):
+    """
+    Check DSM point is wall point
+    """
+    for z2 in z2s:
+      # mark only high point as wall point
+      if (z1 - z2) > self._wall_height_threshold: return True
+
+    return False
