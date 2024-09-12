@@ -30,8 +30,8 @@ def make_image(
   """
   las = laspy.read(las_path)
 
-  x_min, y_min, x_max, y_max = bbox
-  mask = (las.x >= x_min) & (las.x <= x_max) & (las.y >= y_min) & (las.y <= y_max)
+  bbox_x_min, bbox_y_min, bbox_x_max, bbox_y_max = bbox
+  mask = (las.x >= bbox_x_min) & (las.x <= bbox_x_max) & (las.y >= bbox_y_min) & (las.y <= bbox_y_max)
   filtered_points = las.points[mask]
   points = np.stack(
       [
@@ -45,8 +45,13 @@ def make_image(
       axis=0,
   ).transpose((1, 0))
 
-  width = int(np.floor(x_max / grid_distance - x_min / grid_distance + 0.0001))
-  height = int(np.floor(y_max / grid_distance - y_min / grid_distance + 0.0001))
+  x_min = np.min(points[:, 0])
+  x_max = np.max(points[:, 0])
+  y_min = np.min(points[:, 1])
+  y_max = np.max(points[:, 1])
+
+  width = int(np.floor(x_max / grid_distance - x_min / grid_distance + 0.0001)) + 20
+  height = int(np.floor(y_max / grid_distance - y_min / grid_distance + 0.0001)) + 20
 
   image_data = np.zeros((width, height, 3), dtype=np.uint8)
   depth_data = np.zeros((width, height), dtype=np.float_)
