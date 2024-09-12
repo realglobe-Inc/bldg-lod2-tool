@@ -137,14 +137,21 @@ class Preprocess:
             continue
 
           z2s = []
-          if i > 0:
+          try:
             z2s.append(wall_xyz[i - 1, j][2])
-          if i < len(wall_xyz[i]) - 1:
+          except Exception: pass
+
+          try:
             z2s.append(wall_xyz[i + 1, j][2])
-          if j > 0:
+          except Exception: pass
+
+          try:
             z2s.append(wall_xyz[i, j - 1][2])
-          if j < len(wall_xyz[i]) - 1:
+          except Exception: pass
+
+          try:
             z2s.append(wall_xyz[i, j + 1][2])
+          except Exception: pass
 
           if self._is_wall_point(z1, z2s):
             wall_points.append([x, y, z1])
