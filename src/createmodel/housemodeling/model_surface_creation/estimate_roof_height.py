@@ -5,7 +5,6 @@ import numpy.typing as npt
 import pulp
 
 from .utils.triangulation import ScoreType, Triangle, triangulation, triangulation_2d
-from .utils.geometry import Point
 
 
 MIN_BUILDING_HEIGHT: Final[float] = 2  # meters
@@ -46,10 +45,7 @@ def estimate_roof_heights(
   # 各屋根面を三角形に分割する
   triangles: list[tuple[Triangle, int]] = []
 
-  points_xyz = np.concatenate([
-      points_xy,
-      np.zeros((len(points_xy), 1)),
-  ], axis=1)
+  points_xyz = np.concatenate([points_xy, np.zeros((len(points_xy), 1))], axis=1)
 
   # 線分上の頂点を取り除いた多角形を作成
   simplified_outer_polygon = simplify_polygon(outer_polygon, points_xyz)
@@ -160,14 +156,9 @@ def solve_linear_programming(
     min_distance = distances.min()
 
     lower_bound = roof_bottom_height - padding
-    upper_bound = \
-        min(roof_bottom_height + min_distance, roof_top_height) + padding
+    upper_bound = min(roof_bottom_height + min_distance, roof_top_height) + padding
 
-    z_vars.append(pulp.LpVariable(
-        f'z_{i}',
-        lowBound=lower_bound,
-        upBound=upper_bound,
-    ))
+    z_vars.append(pulp.LpVariable(f'z_{i}', lowBound=lower_bound, upBound=upper_bound))
 
   # 評価関数を設定
   objective = []
@@ -183,15 +174,11 @@ def solve_linear_programming(
     ) / 2.0
     sum_area += area_2d
     objective_volume.append(
-        area_2d *
-        (pulp.lpSum([
-            z_vars[vertex.point_id] - roof_bottom_height
-            for vertex in triangle
-        ]))
+        area_2d * (
+            pulp.lpSum([z_vars[vertex.point_id] - roof_bottom_height for vertex in triangle])
+        )
     )
-  objective.append(
-      pulp.lpSum(objective_volume) / sum_area * volume_weight
-  )
+  objective.append(pulp.lpSum(objective_volume) / sum_area * volume_weight)
 
   # 角度 (減点)
   angle_weight = 2.5

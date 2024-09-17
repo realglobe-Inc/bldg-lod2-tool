@@ -48,7 +48,8 @@ class Preprocess:
       self,
       cloud: PointCloud,
       ground_height: float,
-      footprint: geo.Polygon
+      footprint: geo.Polygon,
+      debug_mode: bool = False
   ) -> tuple[npt.NDArray[np.uint8], npt.NDArray[np.uint8]]:
     """前処理
 
@@ -56,7 +57,9 @@ class Preprocess:
 
     Args:
       cloud(PointCloud): 建物点群
+      ground_height (float): 地面の高さm
       footprint(geo.Polygon): 建物外形ポリゴン
+      debug_mode (bool, optional): デバッグモード (Default: False)
 
     Returns:
       NDArray[np.uint8]: (image_size, image_size, 3)のRGB画像データ
@@ -130,38 +133,43 @@ class Preprocess:
       rgb_image = rgb_image.reshape(height, width, 3).astype(np.uint8)
       depth_image = depth_image.reshape(height, width).astype(np.uint8)
 
-      rgb_image_debug = rgb_image.copy()
-      for i, wall_xyz_j in enumerate(wall_xyz):
-        for j, (x, y, z1) in enumerate(wall_xyz_j):
-          if (x == 0 and y == 0 and z1 == 0):
-            continue
+      if debug_mode:
+        rgb_image_wall_line = rgb_image.copy()
+        for i, wall_xyz_j in enumerate(wall_xyz):
+          for j, (x, y, z1) in enumerate(wall_xyz_j):
+            if (x == 0 and y == 0 and z1 == 0):
+              continue
 
-          z2s = []
-          try:
-            z2s.append(wall_xyz[i - 1, j][2])
-          except Exception: pass
+            z2s = []
+            try:
+              z2s.append(wall_xyz[i - 1, j][2])
+            except Exception: pass
 
-          try:
-            z2s.append(wall_xyz[i + 1, j][2])
-          except Exception: pass
+            try:
+              z2s.append(wall_xyz[i + 1, j][2])
+            except Exception: pass
 
-          try:
-            z2s.append(wall_xyz[i, j - 1][2])
-          except Exception: pass
+            try:
+              z2s.append(wall_xyz[i, j - 1][2])
+            except Exception: pass
 
-          try:
-            z2s.append(wall_xyz[i, j + 1][2])
-          except Exception: pass
+            try:
+              z2s.append(wall_xyz[i, j + 1][2])
+            except Exception: pass
 
-          if self._is_wall_point(z1, z2s):
-            wall_points.append([x, y, z1])
-            rgb_image_debug[i][j] = [255, 0, 0]
+            if self._is_wall_point(z1, z2s):
+              wall_points.append([x, y, z1])
+              rgb_image_wall_line[i][j] = [255, 0, 0]
 
-      Path('debug').mkdir(parents=True, exist_ok=True)
-      image_debug = Image.fromarray(rgb_image_debug, "RGB")
-      image_path = os.path.join('debug', f'{self._building_id}.jpg')
-      image_debug.save(image_path)
-      print(image_path)
+        Path(os.path.join('debug', self._building_id)).mkdir(parents=True, exist_ok=True)
+        image_origin = Image.fromarray(rgb_image, "RGB")
+        image_wall_line = Image.fromarray(rgb_image_wall_line, "RGB")
+
+        image_origin_path = os.path.join('debug', self._building_id, 'origin.jpg')
+        image_wall_line_path = os.path.join('debug', self._building_id, 'wall_line.jpg')
+
+        image_origin.save(image_origin_path)
+        image_wall_line.save(image_wall_line_path)
 
     # 画像を拡大
     if self._expand_rate != 1:

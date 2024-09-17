@@ -24,7 +24,8 @@ def CreateModel(
     roof_edge_detection_checkpoint_path: str,
     grid_size: float = 0.25,
     expand_rate: Optional[float] = None,
-    use_gpu: bool = False
+    use_gpu: bool = False,
+    debug_mode: bool = False,
 ) -> None:
   """家屋3Dモデルの作成
 
@@ -39,13 +40,14 @@ def CreateModel(
     grid_size(float,optional): 点群の間隔(meter) (Default: 0.25),
     expand_rate(float, optional): 画像の拡大率 (Default: 1),
     use_gpu(bool, optional): 推論時のGPU使用の有無 (Default: False)
+    debug_mode (bool, optional): デバッグモード (Default: False)
   """
 
   image_size = 256
 
   # 作成に使用するためのデータを作成
   preprocess = Preprocess(grid_size=grid_size, image_size=image_size, expand_rate=expand_rate, building_id=building_id)
-  rgb_image, depth_image, wall_points = preprocess.preprocess(cloud, min_ground_height, shape)
+  rgb_image, depth_image, wall_points = preprocess.preprocess(cloud, min_ground_height, shape, debug_mode)
 
   # 平面直角座標と画像座標の変換を行うクラスを作成
   min_x, min_y = cloud.get_points()[:, :2].min(axis=0)

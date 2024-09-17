@@ -75,6 +75,7 @@ class ParamManager:
   KEY_DELETE_ERROR_OBJECT = 'DeleteErrorObject'
   KEY_NON_PLANE_THICKNESS = 'NonPlaneThickness'
   KEY_NON_PLANE_ANGLE = 'NonPlaneAngle'
+  KEY_DEBUG_MODE = 'DebugMode'
   KEY_TARGET_COORD_AREAS = 'TargetCoordAreas'
   KEY_TEXTURE_OUTPUT_WIDTH_MAX = 'TextureOutputWidthMax'
   KEY_TEXTURE_OUTPUT_HEIGHT_MAX = 'TextureOutputHeightMax'
@@ -141,6 +142,8 @@ class ParamManager:
     # 外部標定要素から算出する回転行列のモード
     self.rotate_matrix_mode: ParamManager.RotateMatrixMode = ParamManager.RotateMatrixMode.XYZ
 
+    # デバッグモード：開発のためのキャッシュ化/屋根線イメージ生成
+    self.debug_mode: False
     # 建築物選択範囲
     self.target_coord_areas: Union[list[list[list[float]]], None]
     # テクスチャー横幅最大値(4096まで設定可)
@@ -182,6 +185,7 @@ class ParamManager:
         c = e.colno
         raise (Exception(f'json file decoding error: {e.msg} line {r} column {c}.'))
 
+      self.debug_mode = jsonLoad.get(self.KEY_DEBUG_MODE) or False
       self.target_coord_areas = jsonLoad.get(self.KEY_TARGET_COORD_AREAS)
       self.texture_output_width_max = jsonLoad.get(self.KEY_TEXTURE_OUTPUT_WIDTH_MAX) or self.TEXTURE_OUTPUT_WIDTH_MAX
       self.texture_output_height_max = jsonLoad.get(self.KEY_TEXTURE_OUTPUT_HEIGHT_MAX) or self.TEXTURE_OUTPUT_HEIGHT_MAX
