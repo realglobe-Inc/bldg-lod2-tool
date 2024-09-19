@@ -47,7 +47,7 @@ def CreateModel(
 
   # 作成に使用するためのデータを作成
   preprocess = Preprocess(grid_size=grid_size, image_size=image_size, expand_rate=expand_rate, building_id=building_id)
-  rgb_image, depth_image, wall_points = preprocess.preprocess(cloud, min_ground_height, shape, debug_mode)
+  rgb_image, depth_image = preprocess.preprocess(cloud, min_ground_height, shape, debug_mode)
 
   # 平面直角座標と画像座標の変換を行うクラスを作成
   min_x, min_y = cloud.get_points()[:, :2].min(axis=0)
