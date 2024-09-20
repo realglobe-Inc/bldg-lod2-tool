@@ -12,12 +12,17 @@ import shapely.geometry as geo
 from shapely.geometry import Point
 from sklearn.neighbors import NearestNeighbors
 
+from src.createmodel.housemodeling.roof_layer import RoofLayer
+
 from ..lasmanager import PointCloud
 
 
 class Preprocess:
   """前処理クラス
   """
+
+  NO_POINT = -1
+  NOISE_POINT = -2
 
   _grid_size: Final[float]
   _image_size: Final[int]
@@ -28,7 +33,6 @@ class Preprocess:
       grid_size: float,
       image_size: int,
       expand_rate: Optional[float] = None,
-      wall_height_threshold: float = 0.2,
       building_id: Optional[str] = None,
   ) -> None:
     """コンストラクタ
@@ -42,7 +46,6 @@ class Preprocess:
     self._grid_size = grid_size
     self._image_size = image_size
     self._expand_rate = expand_rate if expand_rate is not None else 1.0
-    self._wall_height_threshold = wall_height_threshold
     self._building_id = building_id
 
     """コンストラクタ
@@ -110,15 +113,12 @@ class Preprocess:
     rgb_image = rgb_image.reshape(height, width, 3).astype(np.uint8)
     depth_image = depth_image.reshape(height, width).astype(np.uint8)
 
-    layer_indexes = np.full((height, width), -1, dtype=np.int_)
-
     if debug_mode:
-      wall_indexes = self._get_wall_indexes(layer_point_xyz)
-      layer_indexes, layer_count = self._assign_layers(wall_indexes, layer_point_xyz)
+      roof_layer = RoofLayer(layer_point_xyz)
 
-      self._save_layer_image(layer_indexes, layer_count)
+      self._save_layer_image(roof_layer.layer_class)
       self._save_image_origin(rgb_image)
-      self._save_image_wall_line(rgb_image, wall_indexes)
+      self._save_image_wall_line(rgb_image, roof_layer.wall_indexes)
 
     # 画像を拡大
     if self._expand_rate != 1:
@@ -172,9 +172,9 @@ class Preprocess:
     image_wall_line_path = os.path.join('debug', self._building_id, 'wall_line.jpg')
     image_wall_line.save(image_wall_line_path)
 
-  def _save_layer_image(self, layer_indexes: npt.NDArray[np.int_], layer_count: int):
+  def _save_layer_image(self, layer_class: npt.NDArray[np.int_]):
     """レイヤーごとの色を割り当てて画像を作成する"""
-    height, width = layer_indexes.shape
+    height, width = layer_class.shape
 
     # 空の RGB 画像を作成 (すべて白で初期化)
     image_rgb = np.full((height, width, 3), 255, dtype=np.uint8)
@@ -182,7 +182,7 @@ class Preprocess:
     # i, j に基づいて各ピクセルに色を割り当て
     for i in range(height):
       for j in range(width):
-        layer = layer_indexes[i, j]
+        layer = layer_class[i, j]
         image_rgb[i, j] = self._get_color(layer)  # レイヤーに対応する色を設定
 
     image_layer = Image.fromarray(image_rgb, 'RGB')
@@ -243,7 +243,7 @@ class Preprocess:
         # 境界チェック
         if 0 <= i2 < height and 0 <= j2 < width:
           # すでに layer_count が設定されていないか確認
-          if layer_indexes[i2, j2] == -1:
+          if layer_indexes[i2, j2] == self.NO_POINT:
             neighbor_z = layer_point_xyz[i2, j2, 2]
 
             # z 座標の差が self._wall_height_threshold 以下なら、同じレイヤーと見なす
@@ -254,7 +254,7 @@ class Preprocess:
   def _assign_layers(self, wall_indexes, layer_point_xyz):
     """wall_indexes を基にレイヤーを割り当てる処理"""
     height, width = layer_point_xyz.shape[:2]
-    layer_indexes = np.full((height, width), -1, dtype=np.int_)  # 初期化（-1）
+    layer_indexes = np.full((height, width), self.NO_POINT, dtype=np.int_)  # 初期化（self.NO_POINT）
 
     layer_count = 0  # レイヤー番号
 
@@ -280,10 +280,62 @@ class Preprocess:
         [70, 130, 180], [250, 128, 114], [176, 224, 230], [127, 255, 0], [102, 205, 170]
     ]
 
-    if color_index == -1:
+    if color_index == RoofLayer.NO_POINT:
       return [255, 255, 255]
+
+    if color_index == RoofLayer.NOISE_POINT:
+      return [0, 0, 0]
 
     if color_index < 50:
       return color_palette[color_index]
 
     return [random.randint(0, 255) for _ in range(3)]
+
+  def _bfs_noise_check(self, start_i, start_j, layer_count, layer_indexes):
+    """BFS を使って、指定されたクラスの点を探索し、ノイズかどうかをチェックする"""
+    height, width = layer_indexes.shape
+    queue = deque([(start_i, start_j)])  # BFS のためのキュー
+    directions = [(-1, 0), (1, 0), (0, -1), (0, 1)]  # 上下左右の方向
+
+    visited = set()
+    visited.add((start_i, start_j))
+
+    is_noise = False  # ノイズかどうかのフラグ
+
+    while queue:
+      i, j = queue.popleft()
+
+      for di, dj in directions:
+        i2, j2 = i + di, j + dj
+
+        # 境界チェック
+        if 0 <= i2 < height and 0 <= j2 < width:
+          if layer_indexes[i2, j2] == layer_count and (i2, j2) not in visited:
+            visited.add((i2, j2))
+            queue.append((i2, j2))
+          # 前後左右に違うクラスが存在する場合、ノイズと判定
+          elif layer_indexes[i2, j2] != layer_count and layer_indexes[i2, j2] != self.NO_POINT:
+            is_noise = True
+
+    return visited, is_noise
+
+  def _detect_and_mark_noise(self, layer_indexes: npt.NDArray[np.float_], layer_count: int):
+    """すべての壁領域クラスをループし、ノイズを検出してマークする"""
+    height, width = layer_indexes.shape
+
+    # 各クラスごとに処理
+    for current_class in range(layer_count):
+      # クラス内の点を探索するためのループ
+      for i in range(height):
+        for j in range(width):
+          if layer_indexes[i, j] == current_class:
+            # BFSで探索してクラス内の点がノイズかどうかチェック
+            visited, is_noise = self._bfs_noise_check(i, j, current_class, layer_indexes)
+
+            if is_noise:
+              # ノイズならクラス内のすべての点を -2 に変更
+              for vi, vj in visited:
+                layer_indexes[vi, vj] = -2
+
+            # クラス全体の探索を終えたので終了
+            break
