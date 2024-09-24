@@ -97,6 +97,7 @@ class CityGmlManager:
       self,
       file_name: str,
       target_coord_areas: Union[list[list[list[float]]], None] = None,
+      target_building_ids: Union[list[str], None] = None,
       debug_mode: bool = False
   ) -> tuple[ResultType, Union[list[BuildInfo], None]]:
     """CityGMLファイル読み込み
@@ -130,7 +131,10 @@ class CityGmlManager:
         with open(city_gml_cache_file_path, "rb") as f:
           self.citygml_info = pickle.load(f)
 
-        return restype, self.citygml_info
+        return restype, self._filter_buildings_by_target_building_ids(
+            self.citygml_info,
+            target_building_ids,
+        )
 
       plbld = plapy.plbldg(self.lod1_file_path)
 
@@ -206,7 +210,10 @@ class CityGmlManager:
         with open(city_gml_cache_file_path, "wb") as f:
           pickle.dump(self.citygml_info, f)
 
-      return restype, self.citygml_info
+      return restype, self._filter_buildings_by_target_building_ids(
+          self.citygml_info,
+          target_building_ids,
+      )
 
     except FileNotFoundError:
       Log.output_log_write(LogLevel.MODEL_ERROR, ModuleType.INPUT_CITYGML, 'File not found')
@@ -548,3 +555,16 @@ class CityGmlManager:
         target_geo_area.append([lat, lon])
 
     return np.array(target_geo_area, dtype=np.float_)
+
+  def _filter_buildings_by_target_building_ids(
+      self,
+      buildings: list[BuildInfo],
+      target_building_ids: Union[list[str], None],
+  ):
+    if target_building_ids is None:
+      return buildings
+
+    return [
+        building for building in buildings
+        if building.build_id in target_building_ids
+    ]

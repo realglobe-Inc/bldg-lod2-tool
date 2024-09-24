@@ -77,6 +77,7 @@ class ParamManager:
   KEY_NON_PLANE_ANGLE = 'NonPlaneAngle'
   KEY_DEBUG_MODE = 'DebugMode'
   KEY_TARGET_COORD_AREAS = 'TargetCoordAreas'
+  KEY_TARGET_BUILDING_IDS = 'TargetBuildingIds'
   KEY_TEXTURE_OUTPUT_WIDTH_MAX = 'TextureOutputWidthMax'
   KEY_TEXTURE_OUTPUT_HEIGHT_MAX = 'TextureOutputHeightMax'
 
@@ -144,8 +145,10 @@ class ParamManager:
 
     # デバッグモード：開発のためのキャッシュ化/屋根線イメージ生成
     self.debug_mode: False
-    # 建築物選択範囲
+    # 建築物検索：座標範囲
     self.target_coord_areas: Union[list[list[list[float]]], None]
+    # 建築物検索：建物ID
+    self.target_building_ids: Union[list[str], None]
     # テクスチャー横幅最大値(4096まで設定可)
     self.texture_output_width_max: int = 4096
     # テクスチャー縦幅最大値(4096まで設定可)
@@ -187,6 +190,7 @@ class ParamManager:
 
       self.debug_mode = jsonLoad.get(self.KEY_DEBUG_MODE) or False
       self.target_coord_areas = jsonLoad.get(self.KEY_TARGET_COORD_AREAS)
+      self.target_building_ids = jsonLoad.get(self.KEY_TARGET_BUILDING_IDS)
       self.texture_output_width_max = jsonLoad.get(self.KEY_TEXTURE_OUTPUT_WIDTH_MAX) or self.TEXTURE_OUTPUT_WIDTH_MAX
       self.texture_output_height_max = jsonLoad.get(self.KEY_TEXTURE_OUTPUT_HEIGHT_MAX) or self.TEXTURE_OUTPUT_HEIGHT_MAX
 

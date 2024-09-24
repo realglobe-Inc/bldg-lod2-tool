@@ -90,6 +90,7 @@ def main():
       ret_citygml_read, buildings = citygml.read_file(
           file_name=file_name,
           target_coord_areas=param_manager.target_coord_areas,
+          target_building_ids=param_manager.target_building_ids,
           debug_mode=param_manager.debug_mode,
       )
 

@@ -73,7 +73,7 @@ def main():
 
   input_image_basename = os.path.basename(input_image_path)
   input_image_basename_without_ext, _ = os.path.splitext(input_image_basename)
-  output_image_basename = f"{input_image_basename_without_ext}_out.jpg"
+  output_image_basename = f"{input_image_basename_without_ext}_out.png"
   if args.output_dir is not None:
     output_dir = os.path.expanduser(args.output_dir)
     output_image_path = os.path.join(output_dir, output_image_basename)

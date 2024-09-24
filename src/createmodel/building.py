@@ -1,7 +1,6 @@
 # -*- coding:utf-8 -*-
 import json
 import os
-from pathlib import Path
 import sys
 import pickle
 
@@ -113,11 +112,7 @@ class Building:
           pickle.dump((cloud, min_ground_height, graphcut_height), f)
 
     # 建物分類の推論をキャッシュ化
-    building_class = None
-    try:
-      building_class = param.building_class_cache[self._id]
-    except Exception: pass
-
+    building_class = param.building_class_cache.get(self._id)
     if building_class is None:
       building_class = ClassifyBuilding(
           building_id=self._id,

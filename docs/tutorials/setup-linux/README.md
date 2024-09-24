@@ -162,7 +162,8 @@ python3 AutoCreateLod2.py ~/AutoCreateLod2_tutorial/LOD2Creator_tutorial/param.j
 #### 選択パラメーター
 | No |	キー名 |	値形式 | 説明 |
 | -- | -- | -- | -- | 
-|1| TargetCoordAreas | `Array<Array<Array<number>>>` | 緯度経度の領域を指定して建築物の対象を絞ります。入力しない場合、全ての建築物を対象とします
+|1| TargetCoordAreas | `Array<Array<Array<number>>>` | 緯度経度の領域を指定して建築物の対象を絞ります。
+|2| TargetBuildingIds | `Array<string>` | 建築IDを指定して建築物の対象を絞ります。入力しない場合、全ての建築物を対象とします
 
 
 ### LOD2建築物モデル自動作成開始

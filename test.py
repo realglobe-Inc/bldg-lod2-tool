@@ -1,57 +1,95 @@
-import open3d as o3d
 import numpy as np
-import random
 
-# パラメータ設定
-height_threshold = 0.5  # 隣接点間の高さ差の閾値
-min_points_per_cluster = 10  # クラスタの最小点数
-eps = 1.0  # クラスタリングの近傍距離
 
-# 1. 点群データの読み込み
-# 例としてランダムに生成した点群
-np.random.seed(42)
-points = np.random.rand(1000, 3)  # ランダムに1000点生成
-pcd = o3d.geometry.PointCloud()
-pcd.points = o3d.utility.Vector3dVector(points)
+def calculate_slope(point1: list[float], point2: list[float]):
+  """
+  2点間の傾きを計算する
+  Args:
+    point1 (list[float]): 点1の座標 [x, y]
+    point2 (list[float]): 点2の座標 [x, y]
 
-# 2. k近傍法を使用して各点の隣接点を取得
-kdtree = o3d.geometry.KDTreeFlann(pcd)
+  Returns:
+    float: i軸に対する傾き（角度）
+  """
+  dx = point2[0] - point1[0]
+  dy = point2[1] - point1[1]
+  return np.arctan2(dy, dx) * 180 / np.pi  # ラジアンから度に変換
 
-# 3. 壁点のリスト
-wall_points = []
-non_wall_points = []
 
-# 4. 各点について、隣接点との高さ差を確認して壁点を検出
-for i in range(len(pcd.points)):
-  [k, idx, _] = kdtree.search_knn_vector_3d(pcd.points[i], 6)  # 隣接点を6個取得
-  neighbors = np.asarray(pcd.points)[idx[1:], :]  # 自分以外の隣接点を取得
+def calculate_angle_between_points(
+    vertices_ij: list[list[float]],
+    point_id: int,
+    polygon: list[int],
+):
+  """
+  ポリゴンの指定した頂点を基準に前後の頂点との角度を計算する
+  Args:
+    vertices_ij (list[list[float]]): 全頂点の座標リスト
+    point_id (int): 基準となる頂点のインデックス
+    polygon (list[int]): ポリゴンを構成する頂点のインデックスリスト
 
-  # 高さ差を計算 (z 座標の差)
-  height_diffs = np.abs(neighbors[:, 2] - pcd.points[i][2])
+  Returns:
+    float: 頂点の角度（度数法）
+  """
+  num_vertices = len(polygon)
 
-  # 高さ差が閾値を超える点があれば、その点を壁点としてマーク
-  if np.any(height_diffs > height_threshold):
-    wall_points.append(pcd.points[i])
-  else:
-    non_wall_points.append(pcd.points[i])
+  # 現在の頂点
+  current_point = vertices_ij[polygon[point_id]]
+  # 前の頂点
+  prev_point = vertices_ij[polygon[point_id - 1]]
+  # 次の頂点
+  next_point = vertices_ij[polygon[(point_id + 1) % num_vertices]]
 
-# 5. 壁点をPointCloudオブジェクトに変換
-wall_pcd = o3d.geometry.PointCloud()
-wall_pcd.points = o3d.utility.Vector3dVector(np.array(wall_points))
+  # 前の頂点と次の頂点の傾きをそれぞれ計算
+  prev_slope = calculate_slope(current_point, prev_point)
+  next_slope = calculate_slope(current_point, next_point)
 
-# 6. DBSCAN クラスタリングを使って、壁点で囲まれた領域をクラスタリング
-labels = np.array(wall_pcd.cluster_dbscan(eps=eps, min_points=min_points_per_cluster, print_progress=True))
+  # 次の頂点の角度 - 前の頂点の角度
+  angle = next_slope - prev_slope
 
-# クラスタごとにランダムな色を生成
-max_label = labels.max()
+  # 角度が負の場合は360度を足す
+  if angle < 0:
+    angle += 360
 
-colors = plt.get_cmap("tab20")(labels / (max_label if max_label > 0 else 1))
-random_colors = np.random.rand(max_label + 1, 3)
+  return angle
 
-# 各クラスタにランダムな色を割り当てる
-colors = [random_colors[label] if label >= 0 else [0, 0, 0] for label in labels]
-wall_pcd.colors = o3d.utility.Vector3dVector(colors)
 
-# 7. 検出された壁点とクラスタの可視化
-o3d.visualization.draw_geometries([wall_pcd], window_name="Wall Line Detection with Clusters",
-                                  point_show_normal=False, width=800, height=600)
+def find_vertices_with_angle_over_180(vertices_ij, polygon):
+  """
+  ポリゴンの内部から見て180度以上の角度を持つ頂点を探す
+  Args:
+    vertices_ij (list[list[float]]): 全頂点の座標リスト
+    polygon (list[int]): ポリゴンを構成する頂点のインデックスリスト
+
+  Returns:
+    list[tuple[int, list[float], float]]: 
+      180度以上の角度を持つ頂点のインデックス、座標、角度のリスト
+  """
+  vertices_with_large_angles = []
+
+  for i in range(len(polygon)):
+    # 各頂点に対して角度を計算
+    angle = calculate_angle_between_points(vertices_ij, i, polygon)
+
+    if angle > 180:
+      vertices_with_large_angles.append((polygon[i], vertices_ij[polygon[i]], angle))
+
+  return vertices_with_large_angles
+
+
+# 頂点座標のリスト
+vertices_ij = [[0, 0], [4, 0], [4, 4], [2, 2], [0, 4]]
+
+# ポリゴンを構成する頂点のインデックスリスト
+polygon = [0, 1, 2, 3, 4]
+
+# 180度以上の角度を持つ頂点を取得
+large_angle_vertices = find_vertices_with_angle_over_180(vertices_ij, polygon)
+
+# 結果を表示
+if large_angle_vertices:
+  print("180度以上の角度を持つ頂点:")
+  for index, vertex, angle in large_angle_vertices:
+    print(f"頂点 {index}: {vertex}, 角度: {angle:.2f}度")
+else:
+  print("180度以上の角度を持つ頂点はありません。")

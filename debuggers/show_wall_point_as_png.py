@@ -7,16 +7,31 @@ from PIL import Image
 import laspy
 
 
-def make_image(las_path: str, bbox: tuple[float], output_dir: Union[str, None]):
+def is_wall_point(z_pos_1: float, z_pos_2s: list[float], wall_meter: float):
+  """
+  Check DSM point is wall point
+  """
+  for z_pos_2 in z_pos_2s:
+    # mark only high point as wall point
+    if (z_pos_1 - z_pos_2) > wall_meter: return True
+
+  return False
+
+
+def make_image(
+    las_path: str,
+    bbox: tuple[float],
+    output_dir: Union[str, None],
+    grid_distance: float,
+    wall_meter: float,
+):
   """
   Make Image with DSM (LAS) File
   """
   las = laspy.read(las_path)
 
-  grid_distance = 0.25
-
-  x_min, y_min, x_max, y_max = bbox
-  mask = (las.x >= x_min) & (las.x <= x_max) & (las.y >= y_min) & (las.y <= y_max)
+  bbox_x_min, bbox_y_min, bbox_x_max, bbox_y_max = bbox
+  mask = (las.x >= bbox_x_min) & (las.x <= bbox_x_max) & (las.y >= bbox_y_min) & (las.y <= bbox_y_max)
   filtered_points = las.points[mask]
   points = np.stack(
       [
@@ -30,21 +45,40 @@ def make_image(las_path: str, bbox: tuple[float], output_dir: Union[str, None]):
       axis=0,
   ).transpose((1, 0))
 
-  width = int(np.floor(x_max / grid_distance - x_min / grid_distance + 0.0001))
-  height = int(np.floor(y_max / grid_distance - y_min / grid_distance + 0.0001))
+  x_min = np.min(points[:, 0])
+  x_max = np.max(points[:, 0])
+  y_min = np.min(points[:, 1])
+  y_max = np.max(points[:, 1])
+
+  width = int(np.floor(x_max / grid_distance - x_min / grid_distance + 0.0001)) + 20
+  height = int(np.floor(y_max / grid_distance - y_min / grid_distance + 0.0001)) + 20
 
   image_data = np.zeros((width, height, 3), dtype=np.uint8)
+  depth_data = np.zeros((width, height), dtype=np.float_)
 
   for point in points:
-    x, y, _z, r, g, b = point
+    x, y, z, r, g, b = point
     x_pos = int(np.floor((x - x_min) / grid_distance + 0.0001))
     y_pos = int(np.floor((y - y_min) / grid_distance + 0.0001))
     image_data[x_pos, y_pos] = [r / 256, g / 256, b / 256]
+    depth_data[x_pos, y_pos] = z
+
+  for x_pos, depth_data_y in enumerate(depth_data):
+    for y_pos, z_pos_1 in enumerate(depth_data_y):
+      z_pos_2s = []
+      if x_pos > 0: z_pos_2s.append(depth_data[x_pos - 1, y_pos])
+      if x_pos < len(depth_data) - 1: z_pos_2s.append(depth_data[x_pos + 1, y_pos])
+      if y_pos > 0: z_pos_2s.append(depth_data[x_pos, y_pos - 1])
+      if y_pos < len(depth_data_y) - 1: z_pos_2s.append(depth_data[x_pos, y_pos + 1])
+
+      if is_wall_point(z_pos_1, z_pos_2s, wall_meter):
+        image_data[x_pos, y_pos] = [255, 0, 0]
 
   print(las_path)
+
   las_basename = os.path.basename(las_path)
   las_basename_without_ext, _ = os.path.splitext(las_basename)
-  image_basename = f"{las_basename_without_ext}_{x_min},{y_min},{x_max},{y_max}.jpg"
+  image_basename = f"{las_basename_without_ext}_wall_point_{wall_meter}_{x_min},{y_min},{x_max},{y_max}.png"
   image = Image.fromarray(image_data, "RGB")
   if output_dir is not None:
     output_dir = os.path.expanduser(output_dir)
@@ -101,7 +135,7 @@ def search_dsm_files(bbox: tuple[float], dsm_dir: str):
 
 
 def main():
-  """X,Y 座標領域に入っている DSM の RGB を jpg に保存"""
+  """X,Y 座標領域に入っている DSM の RGB を png に保存"""
   parser = argparse.ArgumentParser(description="Search LAS files by bounding box.")
   parser.add_argument("min_x", type=float, help="Minimum X coordinate")
   parser.add_argument("min_y", type=float, help="Minimum Y coordinate")
@@ -109,17 +143,19 @@ def main():
   parser.add_argument("max_y", type=float, help="Maximum Y coordinate")
   parser.add_argument("dsm_dir", type=str, help="Directory containing DSM (LAS) files")
   parser.add_argument("--output_dir", "-o", type=str, help="Optional directory for output image")
+  parser.add_argument("--grid_distance", "-g", type=float, default=0.25, help="Dot XY grid distance of DSM File")
+  parser.add_argument("--wall_meter", "-w", type=float, default=1, help="Decision for mark as Wall")
 
   args = parser.parse_args()
 
-  # python3 search_dsm_file_by_pos.py -21146 -34454 -21132 -34440 ~/DSM/DSM/
+  # python3 show_wall_point_as_png.py -21330 -34630 -21030 -34330 ~/DSM/DSM/
 
   bbox: tuple[float] = (args.min_x, args.min_y, args.max_x, args.max_y)
   matching_files = search_dsm_files(bbox, args.dsm_dir)
 
   if matching_files:
     for file in matching_files:
-      make_image(file, bbox, args.output_dir)
+      make_image(file, bbox, args.output_dir, args.grid_distance, args.wall_meter)
   else:
     print("No matching LAS files found.")
 

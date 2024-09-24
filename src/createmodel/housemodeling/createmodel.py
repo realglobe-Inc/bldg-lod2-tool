@@ -1,8 +1,11 @@
 import os
-from shapely.geometry import Polygon
-import numpy as np
 from typing import Optional
 
+from shapely.geometry import Polygon
+import numpy as np
+
+
+from .roof_polygon_info import RoofPolygonInfo
 from .house_model import HouseModel
 from .coordinates_converter import CoordConverterForCartesianAndImagePos
 from .model_surface_creation.extract_roof_surface import extract_roof_surface
@@ -47,7 +50,7 @@ def CreateModel(
 
   # 作成に使用するためのデータを作成
   preprocess = Preprocess(grid_size=grid_size, image_size=image_size, expand_rate=expand_rate, building_id=building_id)
-  rgb_image, depth_image = preprocess.preprocess(cloud, min_ground_height, shape, debug_mode)
+  rgb_image, depth_image, roof_layer_info = preprocess.preprocess(cloud, min_ground_height, shape, debug_mode)
 
   # 平面直角座標と画像座標の変換を行うクラスを作成
   min_x, min_y = cloud.get_points()[:, :2].min(axis=0)
@@ -78,6 +81,7 @@ def CreateModel(
   cartesian_points, inner_edge, outer_edge = optimize_roof_edge(shape, cartesian_corners_xy, edges)
   result_edges = inner_edge + outer_edge
   outer_polygon, inner_polygons = extract_roof_surface(cartesian_points, result_edges)
+  roof_polygon_info = RoofPolygonInfo(cartesian_points, inner_polygons, roof_layer_info, debug_mode)
 
   # 平面直角座標から画像座標への変換
   image_points = [
