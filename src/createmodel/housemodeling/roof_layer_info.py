@@ -14,12 +14,14 @@ class RoofLayerInfo:
   NO_POINT = -1
   NOISE_POINT = -2
   ROOF_LINE_POINT = -3
+  ROOF_VERTICE_POINT = -4
   WALL_HEIGHT_THRESHOLD = 0.2
 
   RESERVED_COLOR = {
       NO_POINT: [255, 255, 255],
       NOISE_POINT: [0, 0, 0],
       ROOF_LINE_POINT: [0, 255, 0],
+      ROOF_VERTICE_POINT: [255, 0, 0],
   }
 
   @property
@@ -76,7 +78,7 @@ class RoofLayerInfo:
 
     Args:
       layer_points_xyz: DSM点群のRGB画像(i,j)のxyz座標
-      rgb_image (npt.NDArray[np.float_]): DSM点群のRGB画像
+      rgb_image (npt.NDArray[np.uint8]): DSM点群のRGB画像
       debug_dir (str): 記録するファイル名
       debug_mode (bool): デバッグモード
     """
@@ -310,8 +312,8 @@ class RoofLayerInfo:
     # i, j に基づいて各ピクセルに色を割り当て
     for i in range(height):
       for j in range(width):
-        layer = layer_class[i, j]
-        image_rgb[i, j] = self._get_color(layer)  # レイヤーに対応する色を設定
+        layer_number = layer_class[i, j]
+        image_rgb[i, j] = self._get_color(layer_number)  # レイヤーに対応する色を設定
 
     image_layer = Image.fromarray(image_rgb, 'RGB')
     image_layer_path = os.path.join(self._debug_dir, file_name)
@@ -319,7 +321,7 @@ class RoofLayerInfo:
 
   def save_roof_line_image(
       self,
-      rgb_image: npt.NDArray[np.float_],
+      rgb_image: npt.NDArray[np.uint8],
       roof_lines: set[tuple[tuple[int, int], tuple[int, int]]],
       file_name: str = 'roof_line.png',
   ):
@@ -327,19 +329,17 @@ class RoofLayerInfo:
     屋根線をイメージとして保存（デバッグ用）
 
     Args:
-      rgb_image (npt.NDArray[np.float_]): DSM点群のRGB画像
+      rgb_image (npt.NDArray[np.uint8]): DSM点群のRGB画像
       roof_lines (set[tuple[tuple[int, int], tuple[int, int]]]): 線のリスト
       file_name (str): 記録するファイル名
     """
 
-    rgb_image = rgb_image.copy()
-
     # RGB画像データをBGRに変換（OpenCVはBGRを使用）
-    image_roof_line = cv2.cvtColor(rgb_image, cv2.COLOR_RGB2BGR)
+    image_roof_line = cv2.cvtColor(rgb_image.copy(), cv2.COLOR_RGB2BGR)
 
-    # 線を描画
+    # 線と点を一緒に描画
     for start_image_pos, end_image_pos in roof_lines:
-      # 座標を整数にキャストして x, y を入れ替え
+        # 座標を整数にキャストして x, y を入れ替え
       start_image_pos = tuple(map(int, (start_image_pos[1], start_image_pos[0])))
       end_image_pos = tuple(map(int, (end_image_pos[1], end_image_pos[0])))
 
@@ -348,11 +348,30 @@ class RoofLayerInfo:
           image_roof_line,
           start_image_pos,
           end_image_pos,
-          self._get_color(RoofLayerInfo.ROOF_LINE_POINT),
+          self._get_color(RoofLayerInfo.ROOF_LINE_POINT),  # 線の色
           1
       )
 
+      # 赤色の点を描画
+      cv2.circle(
+          image_roof_line,
+          start_image_pos,
+          0,  # 点の半径
+          self._get_color(RoofLayerInfo.ROOF_VERTICE_POINT),  # 赤色
+          -1  # 塗りつぶし
+      )
+
+      cv2.circle(
+          image_roof_line,
+          end_image_pos,
+          0,  # 点の半径
+          self._get_color(RoofLayerInfo.ROOF_VERTICE_POINT),  # 赤色
+          -1  # 塗りつぶし
+      )
+
+    # ファイルに保存
     image_roof_line_path = os.path.join(self._debug_dir, file_name)
+
     cv2.imwrite(image_roof_line_path, image_roof_line)
 
   def _get_color_palette(self, reserved_colors: list[list[int]]):
