@@ -7,18 +7,18 @@ from ..roof_layer_info import RoofLayerInfo
 from ..model_surface_creation.utils.geometry import Point
 
 
-def is_devidable_poligon(
-    layer_class: npt.NDArray[np.int_],
+def is_splitable_poligon(
     vertices: list[Point],
     polygon: list[int],
+    layer_class: npt.NDArray[np.int_],
 ):
   """
   ポリゴン分割可能か確認。
 
   Args:
-    layer_class: (npt.NDArray[np.int_]) DSM点群の画像座標 (i,j) 二次元アレイに壁点を起点としてクラスタリングした屋根のレイヤー番号を記録したもの
     vertices (list[Point]): 頂点リスト
-    polygon: list[int],
+    polygon (list[int]): ポリゴンの頂点番号リスト
+    layer_class: (npt.NDArray[np.int_]) DSM点群の画像座標 (i,j) 二次元アレイに壁点を起点としてクラスタリングした屋根のレイヤー番号を記録したもの
 
   Returns:
     tuple[int, int]: 各頂点の(i, j)座標のリスト
@@ -26,8 +26,7 @@ def is_devidable_poligon(
   if len(polygon) <= 4:
     return False
 
-  polygon_ijs = [point_id_to_ij(vertices, point_id) for point_id in polygon]
-  layer_number_points_pair = get_layer_number_points_pair(layer_class, polygon_ijs)
+  layer_number_points_pair = get_layer_number_points_pair(vertices, polygon, layer_class)
   majority_layer_number = get_majority_layer_number(layer_number_points_pair)
   if majority_layer_number == RoofLayerInfo.NOISE_POINT:
     return False
@@ -60,18 +59,20 @@ def point_id_to_ij(vertices: list[Point], point_id: list[int]) -> tuple[int, int
   return (int(vertices[point_id].x), int(vertices[point_id].y))
 
 
-def get_layer_number_points_pair(layer_class: npt.NDArray[np.int_], polygon_ijs: list[tuple[int, int]]):
+def get_layer_number_points_pair(vertices: list[Point], polygon: list[int], layer_class: npt.NDArray[np.int_]):
   """
   ポリゴン内のレイヤー番号と対応するポイントを取得する。
 
   Args:
+    vertices (list[Point]): 頂点リスト
+    polygon (list[int]): ポリゴンの頂点番号リスト
     layer_class: (npt.NDArray[np.int_]) DSM点群の画像座標 (i,j) 二次元アレイに壁点を起点としてクラスタリングした屋根のレイヤー番号を記録したもの
-    polygon_ijs (list[tuple[int, int]]): ポリゴンを構成する頂点のインデックスリスト
 
   Returns:
     dict[int, list[tuple[int, int]]]: レイヤー番号とそのポイント(i, j)のペアを含む辞書
   """
 
+  polygon_ijs = [point_id_to_ij(vertices, point_id) for point_id in polygon]
   height, width = layer_class.shape
   poly = Polygon(polygon_ijs)
   layer_number_points_pair: dict[int, list[tuple[int, int]]] = {}
@@ -132,14 +133,14 @@ def ensure_counterclockwise(vertices: list[Point], polygon: list[int]):
   return polygon
 
 
-def calculate_angle_between_points(vertices: list[Point], point_id: int, polygon: list[int]):
+def calculate_angle_between_points(vertices: list[Point], polygon: list[int], point_id: int):
   """
   ポリゴンの指定した頂点を基準に前後の頂点との角度を計算する
 
   Args:
     vertices (list[Point]): 頂点リスト
-    point_id (int): 基準となる頂点のインデックス
     polygon (list[int]): ポリゴンの頂点番号リスト
+    point_id (int): 基準となる頂点のインデックス
 
   Returns:
     float: 頂点の角度（度数法）
@@ -236,16 +237,11 @@ def find_vertices_with_angle_over_200(vertices: list[Point], polygon: list[int])
   Returns:
     list[int]: 200度以上の角度を持つ頂点のインデックスのリスト
   """
-  counter_clockwised_polygon = ensure_counterclockwise(vertices, polygon)
+
   vertices_with_large_angles: list[int] = []
-
+  counter_clockwised_polygon = ensure_counterclockwise(vertices, polygon)
   for point_id in counter_clockwised_polygon:
-    angle = calculate_angle_between_points(
-        vertices,
-        point_id,
-        counter_clockwised_polygon,
-    )
-
+    angle = calculate_angle_between_points(vertices, counter_clockwised_polygon, point_id)
     if angle > 200:
       vertices_with_large_angles.append(point_id)
 
@@ -286,7 +282,7 @@ def get_polygon_line_pixel_edge_pair(vertices: list[Point], polygon: list[int]):
   return polygon_line_pixel_edge_pair
 
 
-def get_devidable_point_on_poligon(vertices: list[Point], polygon: list[int]):
+def get_splitable_point_on_poligon(vertices: list[Point], polygon: list[int]):
   """
   ポリゴン分割できる開始線の開始頂点IDと終了点の座標(i,j)リストのペアを出す。
 
@@ -295,11 +291,11 @@ def get_devidable_point_on_poligon(vertices: list[Point], polygon: list[int]):
     polygon (list[int]): ポリゴンを構成する頂点のインデックスリスト
 
   Returns:
-    dict[int, list[tuple[tuple[int, int], tuple[int, int]]]]: ポリゴン分割できる開始線の開始頂点IDと終了点の座標(i,j)リストのペア
+    dict[int, list[tuple[int, int]]]: ポリゴン分割できる開始線の開始頂点IDと終了点の座標(i,j)リストのペア
     dict[tuple[int, int], tuple[int, int]]: ポリゴンのすべての辺のピクセル座標
   """
 
-  start_point_id_end_point_ijs_pair: dict[int, list[tuple[tuple[int, int], tuple[int, int]]]] = {}
+  start_point_id_available_end_point_ijs_pair: dict[int, list[tuple[int, int]]] = {}
 
   start_point_ids = find_vertices_with_angle_over_200(vertices, polygon)
   polygon_line_pixel_edge_pair = get_polygon_line_pixel_edge_pair(vertices, polygon)
@@ -317,8 +313,8 @@ def get_devidable_point_on_poligon(vertices: list[Point], polygon: list[int]):
         in [prev_start_point_id, current_start_point_id, next_start_point_id]
     ]
 
-    available_end_poins_ijs: list[tuple[tuple[int, int], tuple[int, int]]] = []
-    for end_point_ij, start_end_point_id in polygon_line_pixel_edge_pair.items():
+    available_end_point_ijs: list[tuple[int, int]] = []
+    for end_point_ij, _ in polygon_line_pixel_edge_pair.items():
       prev_polygon_line = bresenham_line(current_start_point_ij, prev_start_point_ij)
       next_polygon_line = bresenham_line(current_start_point_ij, next_start_point_ij)
       if end_point_ij in prev_polygon_line:
@@ -342,8 +338,41 @@ def get_devidable_point_on_poligon(vertices: list[Point], polygon: list[int]):
         can_select_point = False
 
       if can_select_point:
-        available_end_poins_ijs.append((end_point_ij, start_end_point_id))
+        available_end_point_ijs.append(end_point_ij)
 
-    start_point_id_end_point_ijs_pair[current_start_point_id] = available_end_poins_ijs
+    start_point_id_available_end_point_ijs_pair[current_start_point_id] = available_end_point_ijs
 
-  return (start_point_id_end_point_ijs_pair, polygon_line_pixel_edge_pair)
+  return (start_point_id_available_end_point_ijs_pair, polygon_line_pixel_edge_pair)
+
+
+def split_polygon(
+    vertices: list[Point],
+    polygon: list[int],
+    point_id1: int,
+    point_id2: int,
+) -> tuple[list[int], list[int]]:
+  """
+  ポリゴンの頂点リストを任意の2点で分割して2つのポリゴンを生成する。
+
+  Args:
+      vertices (list[Point]): 頂点リスト
+      polygon (list[int]): ポリゴンの頂点番号リスト
+      point_id1 (int): 分割する最初の点のID
+      point_id2 (int): 分割する2番目の点のID
+
+  Returns:
+      tuple: 2つの分割されたポリゴンの頂点番号リスト
+  """
+  # インデックスを探す
+  index1 = polygon.index(point_id1)
+  index2 = polygon.index(point_id2)
+
+  # index1 が index2 より小さくなるように調整
+  if index1 > index2:
+    index1, index2 = index2, index1
+
+  # ポリゴンを2つに分割
+  polygon1 = polygon[index1:index2 + 1]  # 最初の部分
+  polygon2 = polygon[index2:] + polygon[:index1 + 1]  # 2つ目の部分
+
+  return [ensure_counterclockwise(vertices, polygon) for polygon in [polygon1, polygon2]]

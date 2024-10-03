@@ -1,12 +1,15 @@
+import copy
+
 import numpy as np
 from shapely.geometry import Polygon
 
 from .polygon_devision import (
-    get_devidable_point_on_poligon,
+    get_splitable_point_on_poligon,
     get_layer_number_points_pair,
     get_majority_layer_number,
-    is_devidable_poligon,
+    is_splitable_poligon,
     point_id_to_ij,
+    split_polygon,
 )
 from ..model_surface_creation.utils.geometry import Point
 from ..roof_layer_info import RoofLayerInfo
@@ -53,14 +56,47 @@ class RoofPolygonInfo:
         Point(image_pixel_ij.x, image_pixel_ij.y) for image_pixel_ij in self._image_vertices
     ]
     for inner_polygon in self._inner_polygons:
-      if is_devidable_poligon(self._layer_class_origin, self._image_vertices, inner_polygon):
+      if is_splitable_poligon(self._image_vertices, inner_polygon, self._layer_class_origin):
         devided_polygons = []
         temp_new_vertices: list[Point] = []
-        start_point_id_end_point_ijs_pair, polygon_line_pixel_edge_pair = get_devidable_point_on_poligon(
+        start_point_id_available_end_point_ijs_pair, polygon_line_pixel_edge_pair = get_splitable_point_on_poligon(
             self._image_vertices, inner_polygon
         )
+        for start_point_id, available_end_point_ijs in start_point_id_available_end_point_ijs_pair.items():
+          hige_score_of_splited_poligon = 0
+          new_image_vertices = copy.deepcopy(self._image_vertices)
+          new_devided_polygons = copy.deepcopy(inner_polygon)
+          for available_end_point_ij in available_end_point_ijs:
+            i, j = available_end_point_ij
+            edge_start_point_id, edge_end_point_id = polygon_line_pixel_edge_pair[i, j]
+            is_vertice_exist = edge_start_point_id == edge_end_point_id
+
+            new_image_vertices_tmp = copy.deepcopy(self._image_vertices)
+            new_inner_polygon_tmp = copy.deepcopy(inner_polygon)
+
+            if is_vertice_exist:
+              end_point_id = edge_end_point_id
+            else:
+              # 新しい頂点を追加したと仮定
+              new_point_id = len(self._image_vertices)
+              end_point_id = new_point_id
+              new_image_vertices_tmp.append(Point(i, j))
+
+              # とりあえず、ポリゴンに頂点を追加
+              if edge_start_point_id in new_inner_polygon_tmp:
+                new_inner_polygon_index = new_inner_polygon_tmp.index(edge_start_point_id)
+                new_inner_polygon_tmp.insert(new_inner_polygon_index + 1, new_point_id)
+
+            # 二つの頂点でポリゴンを分割
+            new_devided_polygons_tmp = split_polygon(
+                new_image_vertices_tmp,
+                new_inner_polygon_tmp,
+                start_point_id,
+                end_point_id
+            )
+
         if self._debug_mode:
-          self._save_roof_polygon_devidable_debug_imege(start_point_id_end_point_ijs_pair, polygon_line_pixel_edge_pair)
+          self._save_roof_polygon_splitable_debug_imege(start_point_id_available_end_point_ijs_pair, polygon_line_pixel_edge_pair)
 
         new_inner_polygons.extend(devided_polygons)
         new_image_vertices.extend(temp_new_vertices)
@@ -114,8 +150,7 @@ class RoofPolygonInfo:
     Args:
       inner_polygon (list[int]): ポリゴンを構成する頂点のインデックスリスト
     """
-    inner_polygon_ijs = [point_id_to_ij(image_vertices, point_id) for point_id in inner_polygon]
-    layer_number_points_pair = get_layer_number_points_pair(self._layer_class_origin, inner_polygon_ijs)
+    layer_number_points_pair = get_layer_number_points_pair(image_vertices, inner_polygon, self._layer_class_origin)
     majority_layer_number = get_majority_layer_number(layer_number_points_pair)
 
     if majority_layer_number < 0:
@@ -167,31 +202,30 @@ class RoofPolygonInfo:
         'roof_line_with_layer_class.png',
     )
 
-  def _save_roof_polygon_devidable_debug_imege(
+  def _save_roof_polygon_splitable_debug_imege(
       self,
-      start_point_id_end_point_ijs_pair: dict[int, list[tuple[tuple[int, int], tuple[int, int]]]],
+      start_point_id_end_point_ijs_pair: dict[int, list[tuple[int, int]]],
       polygon_line_pixel_edge_pair: dict[tuple[int, int], tuple[int, int]]
   ):
     """
     ポリゴン分割の中間課程をイメージとして記録する
 
     Args:
-      start_point_id_end_point_ijs_pair (dict[int, list[tuple[tuple[int, int], tuple[int, int]]]]): ポリゴン分割できる開始線の開始頂点IDと終了点の座標(i,j)リストのペア
+      start_point_id_end_point_ijs_pair (dict[int, list[tuple[int, int]]]): ポリゴン分割できる開始線の開始頂点IDと終了点の座標(i,j)リストのペア
       polygon_line_pixel_edge_pair (dict[tuple[int, int], tuple[int, int]]): ポリゴンのすべての辺のピクセル座標
     """
-    for start_point_id, available_end_pixel_positions in start_point_id_end_point_ijs_pair.items():
-      roof_polygon_devidable = np.full((self._height, self._width), RoofLayerInfo.NO_POINT, dtype=np.int_)
+    for start_point_id, end_point_ijs in start_point_id_end_point_ijs_pair.items():
+      roof_polygon_splitable = np.full((self._height, self._width), RoofLayerInfo.NO_POINT, dtype=np.int_)
       for line_point_ij, _ in polygon_line_pixel_edge_pair.items():
         i, j = line_point_ij
-        roof_polygon_devidable[i, j] = RoofLayerInfo.NOISE_POINT
+        roof_polygon_splitable[i, j] = RoofLayerInfo.NOISE_POINT
 
-      for end_point_ij, _ in available_end_pixel_positions:
-        i, j = end_point_ij
-        roof_polygon_devidable[i, j] = RoofLayerInfo.ROOF_LINE_POINT
+      for i, j in end_point_ijs:
+        roof_polygon_splitable[i, j] = RoofLayerInfo.ROOF_LINE_POINT
 
       current_start_point_ij = point_id_to_ij(self._image_vertices, start_point_id)
-      roof_polygon_devidable[current_start_point_ij[0], current_start_point_ij[1]] = RoofLayerInfo.ROOF_LINE_POINT
+      roof_polygon_splitable[current_start_point_ij[0], current_start_point_ij[1]] = RoofLayerInfo.ROOF_LINE_POINT
       self._roof_layer_info.save_layer_image(
-          roof_polygon_devidable,
-          f"roof_polygon_devidable_from_{current_start_point_ij[0]}_{current_start_point_ij[1]}.png",
+          roof_polygon_splitable,
+          f"roof_polygon_splitable_from_{current_start_point_ij[0]}_{current_start_point_ij[1]}.png",
       )
