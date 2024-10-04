@@ -26,18 +26,18 @@ def is_splitable_poligon(
   if len(polygon) <= 4:
     return False
 
-  layer_number_points_pair = get_layer_number_points_pair(vertices, polygon, layer_class)
-  majority_layer_number = get_majority_layer_number(layer_number_points_pair)
+  layer_number_point_ijs_pair = get_layer_number_point_ijs_pair(vertices, polygon, layer_class)
+  majority_layer_number = get_majority_layer_number(layer_number_point_ijs_pair)
   if majority_layer_number == RoofLayerInfo.NOISE_POINT:
     return False
 
-  noise_ijs = layer_number_points_pair.get(RoofLayerInfo.NOISE_POINT) or []
+  noise_ijs = layer_number_point_ijs_pair.get(RoofLayerInfo.NOISE_POINT) or []
   noise_count = len(noise_ijs)
-  total_count = sum(len(v) for v in layer_number_points_pair.values()) - noise_count
+  total_count = sum(len(v) for v in layer_number_point_ijs_pair.values()) - noise_count
   if total_count < 30:
     return False
 
-  majority_layer_count = len(layer_number_points_pair[majority_layer_number])
+  majority_layer_count = len(layer_number_point_ijs_pair[majority_layer_number])
   majority_layer_rate = majority_layer_count / total_count
   if total_count == 0 or majority_layer_rate > 0.85:
     return False
@@ -59,7 +59,7 @@ def point_id_to_ij(vertices: list[Point], point_id: list[int]) -> tuple[int, int
   return (int(vertices[point_id].x), int(vertices[point_id].y))
 
 
-def get_layer_number_points_pair(vertices: list[Point], polygon: list[int], layer_class: npt.NDArray[np.int_]):
+def get_layer_number_point_ijs_pair(vertices: list[Point], polygon: list[int], layer_class: npt.NDArray[np.int_]):
   """
   ポリゴン内のレイヤー番号と対応するポイントを取得する。
 
@@ -75,33 +75,33 @@ def get_layer_number_points_pair(vertices: list[Point], polygon: list[int], laye
   polygon_ijs = [point_id_to_ij(vertices, point_id) for point_id in polygon]
   height, width = layer_class.shape
   poly = Polygon(polygon_ijs)
-  layer_number_points_pair: dict[int, list[tuple[int, int]]] = {}
+  layer_number_point_ijs_pair: dict[int, list[tuple[int, int]]] = {}
   for i in range(height):
     for j in range(width):
       is_inside_polygon = poly.contains(GeoPoint(i, j))
       if is_inside_polygon:
         layer_number = layer_class[i, j]
 
-        if layer_number_points_pair.get(layer_number) is None:
-          layer_number_points_pair[layer_number] = []
+        if layer_number_point_ijs_pair.get(layer_number) is None:
+          layer_number_point_ijs_pair[layer_number] = []
 
-        layer_number_points_pair[layer_number].append((i, j))
-  return layer_number_points_pair
+        layer_number_point_ijs_pair[layer_number].append((i, j))
+  return layer_number_point_ijs_pair
 
 
-def get_majority_layer_number(layer_number_points_pair: dict[int, list[tuple[int, int]]]):
+def get_majority_layer_number(layer_number_point_ijs_pair: dict[int, list[tuple[int, int]]]):
   """
   ポリゴン内で最も多く出現するレイヤー番号を取得する。
 
   Args:
-    layer_number_points_pair (dict[int, list[tuple[int, int]]]): レイヤー番号とそのポイント(i, j)のペアを含む辞書
+    layer_number_point_ijs_pair (dict[int, list[tuple[int, int]]]): レイヤー番号とそのポイント(i, j)のペアを含む辞書
 
   Returns:
     int: ポリゴン内で最も多く出現するレイヤー番号
   """
   layer_count_max = 0
   majority_layer_number = RoofLayerInfo.NOISE_POINT
-  for layer_number, layer_points_ij in layer_number_points_pair.items():
+  for layer_number, layer_points_ij in layer_number_point_ijs_pair.items():
     layer_count = len(layer_points_ij)
 
     if layer_count > layer_count_max and layer_number != RoofLayerInfo.NOISE_POINT:
@@ -248,7 +248,7 @@ def find_vertices_with_angle_over_200(vertices: list[Point], polygon: list[int])
   return vertices_with_large_angles
 
 
-def get_polygon_line_pixel_edge_pair(vertices: list[Point], polygon: list[int]):
+def get_point_ij_edge_point_id_start_end_pair(vertices: list[Point], polygon: list[int]):
   """
   ポリゴンのすべての辺のピクセル座標とそれに対応するエッジのペアを取得。
 
@@ -257,10 +257,10 @@ def get_polygon_line_pixel_edge_pair(vertices: list[Point], polygon: list[int]):
     polygon (list[int]): ポリゴンを構成する頂点のインデックスリスト
 
   Returns:
-    list[tuple[tuple[int, int], tuple[int, int]]]: ポリゴンのすべての辺のピクセル座標とそれに対応するエッジのペア
+    dict[tuple[int, int], tuple[int, int]]: ポリゴンのすべての辺のピクセル座標とそれに対応するエッジのペア
   """
 
-  polygon_line_pixel_edge_pair: dict[tuple[int, int], tuple[int, int]] = {}
+  point_ij_edge_point_id_start_end_pair: dict[tuple[int, int], tuple[int, int]] = {}
 
   for index, point_id in enumerate(polygon):
     # 頂点iと頂点i+1を結ぶ線を引く（最後の頂点は最初の頂点と結ぶ）
@@ -273,22 +273,27 @@ def get_polygon_line_pixel_edge_pair(vertices: list[Point], polygon: list[int]):
     between_current_next_ijs = pixle_ijs[1:-1]
 
     # point_id の座標
-    polygon_line_pixel_edge_pair[current_ij] = (point_id, point_id)
+    point_ij_edge_point_id_start_end_pair[current_ij] = (point_id, point_id)
 
     # point_id と next_point_id の間のある点の座標
     for between_current_next_ij in between_current_next_ijs:
-      polygon_line_pixel_edge_pair[between_current_next_ij] = (point_id, next_point_id)
+      point_ij_edge_point_id_start_end_pair[between_current_next_ij] = (point_id, next_point_id)
 
-  return polygon_line_pixel_edge_pair
+  return point_ij_edge_point_id_start_end_pair
 
 
-def get_splitable_point_on_poligon(vertices: list[Point], polygon: list[int]):
+def get_splitable_point_on_poligon(
+    vertices: list[Point],
+    polygon: list[int],
+    point_ij_edge_point_id_start_end_pair: dict[tuple[int, int], tuple[int, int]],
+):
   """
   ポリゴン分割できる開始線の開始頂点IDと終了点の座標(i,j)リストのペアを出す。
 
   Args:
     vertices (list[Point]): 頂点リスト
     polygon (list[int]): ポリゴンを構成する頂点のインデックスリスト
+    point_ij_edge_point_id_start_end_pair (dict[tuple[int, int], tuple[int, int]]): ポリゴンのすべての辺のピクセル座標とそれに対応するエッジのペア
 
   Returns:
     dict[int, list[tuple[int, int]]]: ポリゴン分割できる開始線の開始頂点IDと終了点の座標(i,j)リストのペア
@@ -298,7 +303,6 @@ def get_splitable_point_on_poligon(vertices: list[Point], polygon: list[int]):
   start_point_id_available_end_point_ijs_pair: dict[int, list[tuple[int, int]]] = {}
 
   start_point_ids = find_vertices_with_angle_over_200(vertices, polygon)
-  polygon_line_pixel_edge_pair = get_polygon_line_pixel_edge_pair(vertices, polygon)
 
   polygon_ijs = [point_id_to_ij(vertices, point_id) for point_id in polygon]
   poly = Polygon(polygon_ijs)
@@ -314,7 +318,7 @@ def get_splitable_point_on_poligon(vertices: list[Point], polygon: list[int]):
     ]
 
     available_end_point_ijs: list[tuple[int, int]] = []
-    for end_point_ij, _ in polygon_line_pixel_edge_pair.items():
+    for end_point_ij, _ in point_ij_edge_point_id_start_end_pair.items():
       prev_polygon_line = bresenham_line(current_start_point_ij, prev_start_point_ij)
       next_polygon_line = bresenham_line(current_start_point_ij, next_start_point_ij)
       if end_point_ij in prev_polygon_line:
@@ -326,7 +330,7 @@ def get_splitable_point_on_poligon(vertices: list[Point], polygon: list[int]):
       line_points = bresenham_line(current_start_point_ij, end_point_ij)
       line_points_without_poligon_outer_points = [
           line_point for line_point in line_points
-          if line_point not in polygon_line_pixel_edge_pair
+          if line_point not in point_ij_edge_point_id_start_end_pair
       ]
 
       can_select_point = True
@@ -342,7 +346,7 @@ def get_splitable_point_on_poligon(vertices: list[Point], polygon: list[int]):
 
     start_point_id_available_end_point_ijs_pair[current_start_point_id] = available_end_point_ijs
 
-  return (start_point_id_available_end_point_ijs_pair, polygon_line_pixel_edge_pair)
+  return start_point_id_available_end_point_ijs_pair
 
 
 def split_polygon(
@@ -376,3 +380,47 @@ def split_polygon(
   polygon2 = polygon[index2:] + polygon[:index1 + 1]  # 2つ目の部分
 
   return [ensure_counterclockwise(vertices, polygon) for polygon in [polygon1, polygon2]]
+
+
+def get_splited_poligons_score(
+    vertices: list[Point],
+    splited_polygons: list[list[int]],
+    layer_class: npt.NDArray[np.int_],
+):
+  """
+  分割されたポリゴンがどれだけ綺麗に分割されたかのスコアを計算。
+  - ノイズ処理された点は計算から除外
+  - 分割されたポリゴンの内部に入っている DSM 点の数が 5 以下の場合 0点
+  - SUM（「クラス k の点の数」 / 「ポリゴン内部に入っている DSM 点の数」）^2
+
+  Args:
+    vertices (list[Point]): 頂点リスト
+    splited_polygons (list[list[int]]): 分割された二つのポリゴンの頂点番号リスト
+    layer_class: (npt.NDArray[np.int_]) DSM点群の画像座標 (i,j) 二次元アレイに壁点を起点としてクラスタリングした屋根のレイヤー番号を記録したもの
+
+  Returns:
+    tuple[int, int]: 各頂点の(i, j)座標のリスト
+  """
+
+  total_score = float(0)
+  for splited_polygon in splited_polygons:
+    # 頂点が二つ以下の場合、ポリゴンではない場合 0点
+    if len(splited_polygon) <= 2:
+      return float(0)
+
+    layer_number_point_ijs_pair = get_layer_number_point_ijs_pair(vertices, splited_polygon, layer_class)
+    total_point_count = 0
+    for layer_number, point_ijs in layer_number_point_ijs_pair.items():
+      if layer_number >= 0:
+        total_point_count += len(point_ijs)
+
+    # 分割されたポリゴンの内部に入っている DSM 点の数が 5 以下の場合 0点
+    if total_point_count <= 5:
+      return float(0)
+
+    # SUM（「クラス k の点の数」 / 「ポリゴン内部に入っている DSM 点の数」）^2
+    for layer_number, point_ijs in layer_number_point_ijs_pair.items():
+      if layer_number >= 0:
+        total_score += ((len(point_ijs) / total_point_count) ** 2)
+
+  return total_score
