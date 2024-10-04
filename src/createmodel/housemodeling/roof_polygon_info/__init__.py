@@ -1,17 +1,13 @@
-import copy
-
 import numpy as np
 from shapely.geometry import Polygon
 
 from .polygon_devision import (
-    get_point_ij_edge_point_id_start_end_pair,
-    get_splitable_point_on_poligon,
+    bresenham_line,
     get_layer_number_point_ijs_pair,
     get_majority_layer_number,
-    get_splited_poligons_score,
+    get_new_intersection_polygon_ijs,
     is_splitable_poligon,
     point_id_to_ij,
-    split_polygon,
 )
 from ..model_surface_creation.utils.geometry import Point
 from ..roof_layer_info import RoofLayerInfo
@@ -39,7 +35,8 @@ class RoofPolygonInfo:
     self._roof_layer_info = roof_layer_info
     self._debug_mode = debug_mode
     self._height, self._width = self._roof_layer_info.layer_class.shape
-    self._layer_class_origin = self._roof_layer_info.layer_class.copy()
+    self._layer_class_origin = self._roof_layer_info.layer_class
+    self._rgb_image_origin = self._roof_layer_info.rgb_image
 
     # Cartesian座標と対応する画像座標の対応付け
     self._image_vertices: list[Point] = self._get_image_vertices(self._roof_layer_info, self._cartesian_vertices)
@@ -54,70 +51,14 @@ class RoofPolygonInfo:
     self._process_polygons(self._image_vertices, self._inner_polygons)
 
     new_inner_polygons: list[list[int]] = []
-    new_image_vertices: list[Point] = [
-        Point(image_pixel_ij.x, image_pixel_ij.y) for image_pixel_ij in self._image_vertices
-    ]
     for inner_polygon in self._inner_polygons:
       if is_splitable_poligon(self._image_vertices, inner_polygon, self._layer_class_origin):
-        splited_polygons = []
-        temp_new_vertices: list[Point] = []
-
-        point_ij_edge_point_id_start_end_pair = get_point_ij_edge_point_id_start_end_pair(
-            self._image_vertices, inner_polygon
+        get_new_intersection_polygon_ijs(
+            self._image_vertices,
+            inner_polygon,
+            self._roof_layer_info,
         )
-        start_point_id_available_end_point_ijs_pair = get_splitable_point_on_poligon(
-            self._image_vertices, inner_polygon, point_ij_edge_point_id_start_end_pair
-        )
-        if self._debug_mode:
-          self._save_roof_polygon_splitable_debug_imege(
-              start_point_id_available_end_point_ijs_pair, point_ij_edge_point_id_start_end_pair
-          )
 
-        for start_point_id, available_end_point_ijs in start_point_id_available_end_point_ijs_pair.items():
-          hige_score_of_splited_poligon = 0
-          new_image_vertices = copy.deepcopy(self._image_vertices)
-          new_splited_polygons = copy.deepcopy(inner_polygon)
-          for available_end_point_ij in available_end_point_ijs:
-            i, j = available_end_point_ij
-            edge_start_point_id, edge_end_point_id = point_ij_edge_point_id_start_end_pair[i, j]
-            is_vertice_exist = edge_start_point_id == edge_end_point_id
-
-            new_image_vertices_tmp = copy.deepcopy(self._image_vertices)
-            new_inner_polygon_tmp = copy.deepcopy(inner_polygon)
-
-            if is_vertice_exist:
-              end_point_id = edge_end_point_id
-            else:
-              # 新しい頂点を追加したと仮定
-              new_point_id = len(self._image_vertices)
-              end_point_id = new_point_id
-              new_image_vertices_tmp.append(Point(i, j))
-
-              # とりあえず、ポリゴンに頂点を追加
-              if edge_start_point_id in new_inner_polygon_tmp:
-                new_inner_polygon_index = new_inner_polygon_tmp.index(edge_start_point_id)
-                new_inner_polygon_tmp.insert(new_inner_polygon_index + 1, new_point_id)
-
-            # 二つの頂点でポリゴンを分割
-            new_splited_polygons_tmp = split_polygon(
-                new_image_vertices_tmp,
-                new_inner_polygon_tmp,
-                start_point_id,
-                end_point_id
-            )
-            splited_poligons_score = get_splited_poligons_score(
-                new_image_vertices_tmp,
-                new_splited_polygons_tmp,
-                self._layer_class_origin
-            )
-            if splited_poligons_score > hige_score_of_splited_poligon:
-              hige_score_of_splited_poligon = splited_poligons_score
-              new_image_vertices = new_image_vertices_tmp
-              new_splited_polygons = new_splited_polygons_tmp
-
-          splited_polygons = new_splited_polygons
-        new_inner_polygons.extend(splited_polygons)
-        new_image_vertices.extend(temp_new_vertices)
       else:
         new_inner_polygons.append(inner_polygon)
 
@@ -190,9 +131,9 @@ class RoofPolygonInfo:
     """
     for layer_number, layer_points_ij in layer_number_point_ijs_pair.items():
       for i, j in layer_points_ij:
-        self._rgb_image_of_roof_line_with_layer_class_as_is[i, j] = self._roof_layer_info._get_color(layer_number)
-        self._rgb_image_of_roof_line_with_layer_class_to_be[i, j] = self._roof_layer_info._get_color(majority_layer_number)
-        self._rgb_image_of_roof_line_with_layer_class[i, j] = self._roof_layer_info._get_color(
+        self._rgb_image_of_roof_line_with_layer_class_as_is[i, j] = self._roof_layer_info.get_color(layer_number)
+        self._rgb_image_of_roof_line_with_layer_class_to_be[i, j] = self._roof_layer_info.get_color(majority_layer_number)
+        self._rgb_image_of_roof_line_with_layer_class[i, j] = self._roof_layer_info.get_color(
             RoofLayerInfo.NOISE_POINT if layer_number != layer_number else self._layer_class_origin[i, j]
         )
 
@@ -220,30 +161,40 @@ class RoofPolygonInfo:
         'roof_line_with_layer_class.png',
     )
 
-  def _save_roof_polygon_splitable_debug_imege(
+  def _save_roof_polygon_splited_debug_imege(
       self,
-      start_point_id_end_point_ijs_pair: dict[int, list[tuple[int, int]]],
-      point_ij_edge_point_id_start_end_pair: dict[tuple[int, int], tuple[int, int]]
+      vertices: list[Point],
+      start_point_id: int,
+      end_point_id: int,
+      available_end_point_ijs: list[tuple[int, int]],
+      point_ij_edge_point_id_start_end_pair: dict[tuple[int, int], tuple[int, int]],
   ):
     """
     ポリゴン分割の中間課程をイメージとして記録する
 
     Args:
-      start_point_id_end_point_ijs_pair (dict[int, list[tuple[int, int]]]): ポリゴン分割できる開始線の開始頂点IDと終了点の座標(i,j)リストのペア
+      vertices (list[Point]): 頂点リスト
+      start_point_id (int): ポリゴン分割できる開始線の開始頂点ID
+      available_end_point_ijs (list[tuple[int, int]]): ポリゴン分割できる開始線の終了点の座標(i,j)リスト
       point_ij_edge_point_id_start_end_pair (dict[tuple[int, int], tuple[int, int]]): ポリゴンのすべての辺のピクセル座標
     """
-    for start_point_id, end_point_ijs in start_point_id_end_point_ijs_pair.items():
-      roof_polygon_splitable = np.full((self._height, self._width), RoofLayerInfo.NO_POINT, dtype=np.int_)
-      for line_point_ij, _ in point_ij_edge_point_id_start_end_pair.items():
-        i, j = line_point_ij
-        roof_polygon_splitable[i, j] = RoofLayerInfo.NOISE_POINT
+    roof_polygon_splitable = np.full((self._height, self._width), RoofLayerInfo.NO_POINT, dtype=np.int_)
+    for line_point_ij, _ in point_ij_edge_point_id_start_end_pair.items():
+      i, j = line_point_ij
+      roof_polygon_splitable[i, j] = RoofLayerInfo.NOISE_POINT
 
-      for i, j in end_point_ijs:
-        roof_polygon_splitable[i, j] = RoofLayerInfo.ROOF_LINE_POINT
+    for i, j in available_end_point_ijs:
+      roof_polygon_splitable[i, j] = RoofLayerInfo.ROOF_LINE_POINT
 
-      current_start_point_ij = point_id_to_ij(self._image_vertices, start_point_id)
-      roof_polygon_splitable[current_start_point_ij[0], current_start_point_ij[1]] = RoofLayerInfo.ROOF_LINE_POINT
-      self._roof_layer_info.save_layer_image(
-          roof_polygon_splitable,
-          f"roof_polygon_splitable_from_{current_start_point_ij[0]}_{current_start_point_ij[1]}.png",
-      )
+    spliting_list_start_point_ij = point_id_to_ij(vertices, start_point_id)
+    spliting_list_end_point_ij = point_id_to_ij(vertices, end_point_id)
+    spliting_line_point_ijs = bresenham_line(spliting_list_start_point_ij, spliting_list_end_point_ij)
+
+    for spliting_line_point_ij in spliting_line_point_ijs:
+      i, j = spliting_line_point_ij
+      roof_polygon_splitable[i, j] = RoofLayerInfo.ROOF_VERTICE_POINT
+
+    self._roof_layer_info.save_layer_image(
+        roof_polygon_splitable,
+        f"roof_polygon_splited_from_{spliting_list_start_point_ij[0]}_{spliting_list_start_point_ij[1]}.png",
+    )

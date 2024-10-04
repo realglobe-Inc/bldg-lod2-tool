@@ -8,6 +8,7 @@ import numpy as np
 import numpy.typing as npt
 from PIL import Image
 import cv2
+from shapely.geometry import Polygon
 
 
 class RoofLayerInfo:
@@ -45,6 +46,17 @@ class RoofLayerInfo:
     """
 
     return self._layer_class
+
+  @property
+  def layer_number_layer_outline_ijs_list_pair(self):
+    """
+    クラスタリングされたレイヤー番号に対応するレイヤーのポリゴンリスト
+
+    Returns:
+      dict[int, list[list[tuple[int, int]]]]: クラスタリングされたレイヤー番号に対応するレイヤーのポリゴンリスト
+    """
+
+    return self._layer_number_layer_outline_ijs_list_pair
 
   @property
   def wall_point_positions(self):
@@ -92,10 +104,10 @@ class RoofLayerInfo:
     self._layer_class = np.full((self._height, self._width), RoofLayerInfo.NO_POINT, dtype=np.int_)
     self._layer_class_length = 0
 
-    self._color_palette = self._get_color_palette(RoofLayerInfo.RESERVED_COLOR.values())
+    self._color_palette = self.get_color_palette(RoofLayerInfo.RESERVED_COLOR.values())
     self._wall_point_positions = self._get_wall_point_positions(self._layer_points_xyz)
     self._xy_ij = self._get_xy_ij_pair(self._layer_points_xyz)
-    self._set_layer_class()
+    self._init_layer_class()
     self._detect_and_mark_noise()
 
     if self._debug_mode:
@@ -103,7 +115,8 @@ class RoofLayerInfo:
 
       self._save_image_origin()
       self._save_image_wall_line(self.wall_point_positions)
-      self.save_layer_image(self.layer_class)
+      self.save_layer_image(self._layer_class)
+      self._init_layer_number_outline_ij_pair(self._layer_class)
 
   def find_nearest_xy(self, search_x: float, search_y: float):
     """
@@ -212,7 +225,7 @@ class RoofLayerInfo:
               self._layer_class[i2, j2] = self._layer_class_length
               queue.append((i2, j2))  # 探索対象としてキューに追加
 
-  def _set_layer_class(self):
+  def _init_layer_class(self):
     """wall_point_positions を基にレイヤーを割り当てる処理"""
 
     # wall_point_positions から BFS を開始して各レイヤーを探索
@@ -313,7 +326,7 @@ class RoofLayerInfo:
     for i in range(height):
       for j in range(width):
         layer_number = layer_class[i, j]
-        image_rgb[i, j] = self._get_color(layer_number)  # レイヤーに対応する色を設定
+        image_rgb[i, j] = self.get_color(layer_number)  # レイヤーに対応する色を設定
 
     image_layer = Image.fromarray(image_rgb, 'RGB')
     image_layer_path = os.path.join(self._debug_dir, file_name)
@@ -348,7 +361,7 @@ class RoofLayerInfo:
           image_roof_line,
           start_image_pos,
           end_image_pos,
-          self._get_color(RoofLayerInfo.ROOF_LINE_POINT),  # 線の色
+          self.get_color(RoofLayerInfo.ROOF_LINE_POINT),  # 線の色
           1
       )
 
@@ -357,7 +370,7 @@ class RoofLayerInfo:
           image_roof_line,
           start_image_pos,
           0,  # 点の半径
-          self._get_color(RoofLayerInfo.ROOF_VERTICE_POINT),  # 赤色
+          self.get_color(RoofLayerInfo.ROOF_VERTICE_POINT),  # 赤色
           -1  # 塗りつぶし
       )
 
@@ -365,7 +378,7 @@ class RoofLayerInfo:
           image_roof_line,
           end_image_pos,
           0,  # 点の半径
-          self._get_color(RoofLayerInfo.ROOF_VERTICE_POINT),  # 赤色
+          self.get_color(RoofLayerInfo.ROOF_VERTICE_POINT),  # 赤色
           -1  # 塗りつぶし
       )
 
@@ -374,7 +387,7 @@ class RoofLayerInfo:
 
     cv2.imwrite(image_roof_line_path, image_roof_line)
 
-  def _get_color_palette(self, reserved_colors: list[list[int]]):
+  def get_color_palette(self, reserved_colors: list[list[int]]):
     color_palette_all: list[tuple[int, int, int]] = []
     for color_variation_num in [255, 128, 64, 32, 16, 8]:
       # 0, 255 の組み合わせの色を先に出す
@@ -389,7 +402,7 @@ class RoofLayerInfo:
         if (list(color_palette) not in reserved_colors)
     ]
 
-  def _get_color(self, color_index: int):
+  def get_color(self, color_index: int):
     # 4096 の色を作る
     if color_index == RoofLayerInfo.NO_POINT:
       return [255, 255, 255]
@@ -401,3 +414,61 @@ class RoofLayerInfo:
       return [0, 255, 0]
 
     return self._color_palette[color_index]
+
+  def _init_layer_number_outline_ij_pair(self, layer_class: np.ndarray, file_name: str = 'layer_outline.png'):
+    """
+    レイヤーの外形線を保存する
+
+    Args:
+      layer_class (np.ndarray): DSM点群の画像座標 (i,j) 二次元アレイに壁点を起点としてクラスタリングした屋根のレイヤー番号を記録したもの
+      file_name (str): 記録するファイル名
+    """
+
+    self._layer_number_layer_outline_ijs_list_pair: dict[int, list[list[tuple[int, int]]]] = {}
+
+    height, width = layer_class.shape
+
+    # 空の RGB 画像を作成 (すべて白で初期化)
+    image_rgb = np.full((height, width, 3), 255, dtype=np.uint8)
+    outline_image_rgb = np.full((height, width, 3), 255, dtype=np.uint8)
+
+    layer_numbers: set[int] = set()
+
+    # i, j に基づいて各ピクセルに色を割り当て
+    for i in range(height):
+      for j in range(width):
+        layer_number = layer_class[i, j]
+        layer_numbers.add(layer_number)
+        image_rgb[i, j] = self.get_color(layer_number)  # レイヤーに対応する色を設定
+
+    for layer_number in layer_numbers:
+      if layer_number < 0:
+        continue
+
+      rgb_color = self.get_color(layer_number)
+      mask = cv2.inRange(image_rgb, np.array(rgb_color), np.array(rgb_color))
+      contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+
+      # 輪郭を単純化
+      simplified_contours = []
+      layer_outline_ijs: list[list[tuple[int, int]]] = []
+      epsilon_factor = 0.02  # 輪郭の単純化度合いの調整 (この値を調整するとポリゴンの単純化が変わる)
+      for contour in contours:
+        epsilon = epsilon_factor * cv2.arcLength(contour, True)  # 輪郭の長さに基づいてepsilonを計算
+        approx = cv2.approxPolyDP(contour, epsilon, True)  # 輪郭を単純化
+        layer_outline_ij = [(point[0][0], point[0][1]) for point in approx]
+
+        # 頂点が二つ以下の場合はポリゴンではない
+        if len(layer_outline_ij) >= 3 and Polygon(layer_outline_ij).is_valid:
+          simplified_contours.append(approx)
+          layer_outline_ijs.append(layer_outline_ij)
+
+      self._layer_number_layer_outline_ijs_list_pair[layer_number] = layer_outline_ijs
+
+      # 輪郭線を描画 (塗りつぶさない)
+      cv2.polylines(outline_image_rgb, simplified_contours, isClosed=True, color=rgb_color, thickness=1)
+
+    if self._debug_mode:
+      outline_image_rgb = cv2.cvtColor(outline_image_rgb, cv2.COLOR_BGR2RGB)
+      image_layer_path = os.path.join(self._debug_dir, file_name)
+      cv2.imwrite(image_layer_path, outline_image_rgb)

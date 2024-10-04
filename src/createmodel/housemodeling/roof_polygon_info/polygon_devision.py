@@ -1,6 +1,7 @@
+from typing import Union
 import numpy as np
 import numpy.typing as npt
-from shapely.geometry import Polygon
+from shapely.geometry import Polygon, MultiPolygon
 from shapely.geometry import Point as GeoPoint
 
 from ..roof_layer_info import RoofLayerInfo
@@ -21,7 +22,7 @@ def is_splitable_poligon(
     layer_class: (npt.NDArray[np.int_]) DSM点群の画像座標 (i,j) 二次元アレイに壁点を起点としてクラスタリングした屋根のレイヤー番号を記録したもの
 
   Returns:
-    tuple[int, int]: 各頂点の(i, j)座標のリスト
+    tuple[float, float]: 各頂点の(i, j)座標のリスト
   """
   if len(polygon) <= 4:
     return False
@@ -42,10 +43,17 @@ def is_splitable_poligon(
   if total_count == 0 or majority_layer_rate > 0.85:
     return False
 
-  return True
+  has_angle_over_200 = False
+  counter_clockwised_polygon = ensure_counterclockwise(vertices, polygon)
+  for point_id in counter_clockwised_polygon:
+    angle = calculate_angle_between_points(vertices, counter_clockwised_polygon, point_id)
+    if angle > 200:
+      has_angle_over_200 = True
+
+  return has_angle_over_200
 
 
-def point_id_to_ij(vertices: list[Point], point_id: list[int]) -> tuple[int, int]:
+def point_id_to_ij(vertices: list[Point], point_id: list[int]) -> tuple[float, float]:
   """
   頂点IDを(i, j)座標に変換する。
 
@@ -54,7 +62,7 @@ def point_id_to_ij(vertices: list[Point], point_id: list[int]) -> tuple[int, int
     point_id (int): 頂点ID
 
   Returns:
-    tuple[int, int]: 各頂点の(i, j)座標のリスト
+    tuple[float, float]: 各頂点の(i, j)座標のリスト
   """
   return (int(vertices[point_id].x), int(vertices[point_id].y))
 
@@ -69,13 +77,13 @@ def get_layer_number_point_ijs_pair(vertices: list[Point], polygon: list[int], l
     layer_class: (npt.NDArray[np.int_]) DSM点群の画像座標 (i,j) 二次元アレイに壁点を起点としてクラスタリングした屋根のレイヤー番号を記録したもの
 
   Returns:
-    dict[int, list[tuple[int, int]]]: レイヤー番号とそのポイント(i, j)のペアを含む辞書
+    dict[int, list[tuple[float, float]]]: レイヤー番号とそのポイント(i, j)のペアを含む辞書
   """
 
   polygon_ijs = [point_id_to_ij(vertices, point_id) for point_id in polygon]
   height, width = layer_class.shape
   poly = Polygon(polygon_ijs)
-  layer_number_point_ijs_pair: dict[int, list[tuple[int, int]]] = {}
+  layer_number_point_ijs_pair: dict[int, list[tuple[float, float]]] = {}
   for i in range(height):
     for j in range(width):
       is_inside_polygon = poly.contains(GeoPoint(i, j))
@@ -89,12 +97,26 @@ def get_layer_number_point_ijs_pair(vertices: list[Point], polygon: list[int], l
   return layer_number_point_ijs_pair
 
 
-def get_majority_layer_number(layer_number_point_ijs_pair: dict[int, list[tuple[int, int]]]):
+def get_polygon_inner_point_ijs(vertices: list[Point], polygon: list[int], layer_class: npt.NDArray[np.int_]):
+  polygon_ijs = [point_id_to_ij(vertices, point_id) for point_id in polygon]
+  height, width = layer_class.shape
+  poly = Polygon(polygon_ijs)
+  polygon_inner_point_ijs: list[tuple[float, float]] = []
+  for i in range(height):
+    for j in range(width):
+      is_inside_polygon = poly.contains(GeoPoint(i, j))
+      if is_inside_polygon:
+        polygon_inner_point_ijs.append((i, j))
+
+  return polygon_inner_point_ijs
+
+
+def get_majority_layer_number(layer_number_point_ijs_pair: dict[int, list[tuple[float, float]]]):
   """
   ポリゴン内で最も多く出現するレイヤー番号を取得する。
 
   Args:
-    layer_number_point_ijs_pair (dict[int, list[tuple[int, int]]]): レイヤー番号とそのポイント(i, j)のペアを含む辞書
+    layer_number_point_ijs_pair (dict[int, list[tuple[float, float]]]): レイヤー番号とそのポイント(i, j)のペアを含む辞書
 
   Returns:
     int: ポリゴン内で最も多く出現するレイヤー番号
@@ -192,20 +214,20 @@ def calculate_slope(point1: Point, point2: Point) -> float:
   return np.arctan2(dy, dx) * 180 / np.pi  # ラジアンから度に変換
 
 
-def bresenham_line(ij_1: tuple[int, int], ij_2: tuple[int, int]):
+def bresenham_line(ij_1: tuple[float, float], ij_2: tuple[float, float]):
   """
   Bresenhamのアルゴリズムを使って2点間の直線を描画する。
 
   Args:
-    ij_1 (tuple[int, int]): 視点のピクセル座標
-    ij_2 (tuple[int, int]): 終点のピクセル座標
+    ij_1 (tuple[float, float]): 視点のピクセル座標
+    ij_2 (tuple[float, float]): 終点のピクセル座標
 
   Returns:
-    list[tuple[int, int]]: 線上のすべてのピクセル座標
+    list[tuple[float, float]]: 線上のすべてのピクセル座標
   """
   i0, j0 = ij_1
   i1, j1 = ij_2
-  pixels: list[tuple[int, int]] = []
+  pixels: list[tuple[float, float]] = []
   dx = abs(i1 - i0)
   dy = abs(j1 - j0)
   sx = 1 if i0 < i1 else -1
@@ -225,128 +247,6 @@ def bresenham_line(ij_1: tuple[int, int], ij_2: tuple[int, int]):
       j0 += sy
 
   return pixels
-
-
-def find_vertices_with_angle_over_200(vertices: list[Point], polygon: list[int]):
-  """
-  ポリゴンの内部から見て200度以上の角度を持つ頂点を探す
-  Args:
-    vertices (list[Point]): 頂点リスト
-    polygon (list[int]): ポリゴンを構成する頂点のインデックスリスト
-
-  Returns:
-    list[int]: 200度以上の角度を持つ頂点のインデックスのリスト
-  """
-
-  vertices_with_large_angles: list[int] = []
-  counter_clockwised_polygon = ensure_counterclockwise(vertices, polygon)
-  for point_id in counter_clockwised_polygon:
-    angle = calculate_angle_between_points(vertices, counter_clockwised_polygon, point_id)
-    if angle > 200:
-      vertices_with_large_angles.append(point_id)
-
-  return vertices_with_large_angles
-
-
-def get_point_ij_edge_point_id_start_end_pair(vertices: list[Point], polygon: list[int]):
-  """
-  ポリゴンのすべての辺のピクセル座標とそれに対応するエッジのペアを取得。
-
-  Args:
-    vertices (list[Point]): 頂点リスト
-    polygon (list[int]): ポリゴンを構成する頂点のインデックスリスト
-
-  Returns:
-    dict[tuple[int, int], tuple[int, int]]: ポリゴンのすべての辺のピクセル座標とそれに対応するエッジのペア
-  """
-
-  point_ij_edge_point_id_start_end_pair: dict[tuple[int, int], tuple[int, int]] = {}
-
-  for index, point_id in enumerate(polygon):
-    # 頂点iと頂点i+1を結ぶ線を引く（最後の頂点は最初の頂点と結ぶ）
-    current_ij = point_id_to_ij(vertices, point_id)
-    next_index = index + 1 if (index + 1) != len(polygon) else 0
-    next_point_id = polygon[next_index]
-    next_ij = point_id_to_ij(vertices, next_point_id)
-
-    pixle_ijs = bresenham_line(current_ij, next_ij)
-    between_current_next_ijs = pixle_ijs[1:-1]
-
-    # point_id の座標
-    point_ij_edge_point_id_start_end_pair[current_ij] = (point_id, point_id)
-
-    # point_id と next_point_id の間のある点の座標
-    for between_current_next_ij in between_current_next_ijs:
-      point_ij_edge_point_id_start_end_pair[between_current_next_ij] = (point_id, next_point_id)
-
-  return point_ij_edge_point_id_start_end_pair
-
-
-def get_splitable_point_on_poligon(
-    vertices: list[Point],
-    polygon: list[int],
-    point_ij_edge_point_id_start_end_pair: dict[tuple[int, int], tuple[int, int]],
-):
-  """
-  ポリゴン分割できる開始線の開始頂点IDと終了点の座標(i,j)リストのペアを出す。
-
-  Args:
-    vertices (list[Point]): 頂点リスト
-    polygon (list[int]): ポリゴンを構成する頂点のインデックスリスト
-    point_ij_edge_point_id_start_end_pair (dict[tuple[int, int], tuple[int, int]]): ポリゴンのすべての辺のピクセル座標とそれに対応するエッジのペア
-
-  Returns:
-    dict[int, list[tuple[int, int]]]: ポリゴン分割できる開始線の開始頂点IDと終了点の座標(i,j)リストのペア
-    dict[tuple[int, int], tuple[int, int]]: ポリゴンのすべての辺のピクセル座標
-  """
-
-  start_point_id_available_end_point_ijs_pair: dict[int, list[tuple[int, int]]] = {}
-
-  start_point_ids = find_vertices_with_angle_over_200(vertices, polygon)
-
-  polygon_ijs = [point_id_to_ij(vertices, point_id) for point_id in polygon]
-  poly = Polygon(polygon_ijs)
-
-  for index, current_start_point_id in enumerate(start_point_ids):
-    start_point_ids_length = len(start_point_ids)
-    prev_start_point_id = start_point_ids[index - 1]
-    next_start_point_id = start_point_ids[(index + 1) % start_point_ids_length]
-
-    prev_start_point_ij, current_start_point_ij, next_start_point_ij = [
-        point_id_to_ij(vertices, point_id) for point_id
-        in [prev_start_point_id, current_start_point_id, next_start_point_id]
-    ]
-
-    available_end_point_ijs: list[tuple[int, int]] = []
-    for end_point_ij, _ in point_ij_edge_point_id_start_end_pair.items():
-      prev_polygon_line = bresenham_line(current_start_point_ij, prev_start_point_ij)
-      next_polygon_line = bresenham_line(current_start_point_ij, next_start_point_ij)
-      if end_point_ij in prev_polygon_line:
-        continue
-
-      if end_point_ij in next_polygon_line:
-        continue
-
-      line_points = bresenham_line(current_start_point_ij, end_point_ij)
-      line_points_without_poligon_outer_points = [
-          line_point for line_point in line_points
-          if line_point not in point_ij_edge_point_id_start_end_pair
-      ]
-
-      can_select_point = True
-      for line_point in line_points_without_poligon_outer_points:
-        if poly.contains(GeoPoint(line_point[0], line_point[1])) is False:
-          can_select_point = False
-
-      if len(line_points_without_poligon_outer_points) == 0:
-        can_select_point = False
-
-      if can_select_point:
-        available_end_point_ijs.append(end_point_ij)
-
-    start_point_id_available_end_point_ijs_pair[current_start_point_id] = available_end_point_ijs
-
-  return start_point_id_available_end_point_ijs_pair
 
 
 def split_polygon(
@@ -382,45 +282,182 @@ def split_polygon(
   return [ensure_counterclockwise(vertices, polygon) for polygon in [polygon1, polygon2]]
 
 
-def get_splited_poligons_score(
+def get_new_intersection_polygon_ijs(
     vertices: list[Point],
-    splited_polygons: list[list[int]],
-    layer_class: npt.NDArray[np.int_],
+    polygon: list[int],
+    roof_layer_info: RoofLayerInfo,
 ):
   """
-  分割されたポリゴンがどれだけ綺麗に分割されたかのスコアを計算。
-  - ノイズ処理された点は計算から除外
-  - 分割されたポリゴンの内部に入っている DSM 点の数が 5 以下の場合 0点
-  - SUM（「クラス k の点の数」 / 「ポリゴン内部に入っている DSM 点の数」）^2
+
 
   Args:
     vertices (list[Point]): 頂点リスト
-    splited_polygons (list[list[int]]): 分割された二つのポリゴンの頂点番号リスト
-    layer_class: (npt.NDArray[np.int_]) DSM点群の画像座標 (i,j) 二次元アレイに壁点を起点としてクラスタリングした屋根のレイヤー番号を記録したもの
+    polygon (list[int]): ポリゴンの頂点番号リスト
+    roof_layer_info: RoofLayerInfo 計算結果
 
   Returns:
-    tuple[int, int]: 各頂点の(i, j)座標のリスト
+    tuple[float, float]: 各頂点の(i, j)座標のリスト
+  """
+  # rgb_image = roof_layer_info.rgb_image.copy()
+  layer_class = roof_layer_info.layer_class.copy()
+
+  layer_number_point_ijs_pair = get_layer_number_point_ijs_pair(vertices, polygon, layer_class)
+
+  layer_numbers = [
+      layer_number for layer_number in layer_number_point_ijs_pair.keys()
+      if layer_number >= 0
+  ]
+
+  new_intersection_polygon_ijs_list: list[list[tuple[float, float]]] = []
+  polygon_ijs = [point_id_to_ij(vertices, point_id) for point_id in polygon]
+  for layer_number in layer_numbers:
+    # 屋根のレイヤー番号別にポリゴン化
+    layer_outline_ijs_list = roof_layer_info.layer_number_layer_outline_ijs_list_pair[layer_number]
+    for layer_outline_ijs in layer_outline_ijs_list:
+      # 屋根のレイヤーのポリゴンと屋根線内部ポリゴンが被っている領域のポリゴン
+      intersection_polys = get_intersection_of_polygons(polygon_ijs, layer_outline_ijs)
+      origin_intersection_polygon_ijs: list[list[tuple[float, float]]] = []
+      for intersection_poly in intersection_polys:
+        origin_intersection_polygon_ijs: list[tuple[float, float]] = [
+            coord for coord in intersection_poly.exterior.coords[:-1]
+        ]
+
+      new_intersection_polygon_ijs: list[list[tuple[float, float]]] = [
+          (round(coord[0]), round(coord[1])) for coord in origin_intersection_polygon_ijs
+      ]
+      new_intersection_polygon_ijs = remove_same_vertices_on_polygon(new_intersection_polygon_ijs)
+      if len(new_intersection_polygon_ijs) >= 3 and Polygon(new_intersection_polygon_ijs).is_valid:
+        new_intersection_polygon_ijs_list.append(new_intersection_polygon_ijs)
+      else:
+        # 座標移動によって不正ポリゴンになる可能性がある場合は、移動した座標をもとに戻す
+        new_intersection_polygon_ijs_list.append(origin_intersection_polygon_ijs)
+
+  merged_polygon_ijs_list = merge_polygon_vertices(polygon_ijs, new_intersection_polygon_ijs_list)
+  is_polygons_inside_polygon(polygon_ijs, merged_polygon_ijs_list)
+  return merged_polygon_ijs_list
+
+
+def is_polygons_inside_polygon(
+    origin_polygon_ijs: list[tuple[float, float]],
+    splited_polygon_ijs_list: list[list[tuple[float, float]]],
+):
+  """
+  ポリゴンのに他のポリゴン達が含まれているか確認する
+
+  Args:
+    origin_polygon_ijs (list[tuple[float, float]]): 元のポリゴンの頂点番号リスト
+    splited_polygon_ijs_list (list[list[tuple[float, float]]]): 分割されたポリゴン達の頂点番号リスト
+
+  Returns:
+    bool: 各頂点の(i, j)座標のリスト
   """
 
-  total_score = float(0)
-  for splited_polygon in splited_polygons:
-    # 頂点が二つ以下の場合、ポリゴンではない場合 0点
-    if len(splited_polygon) <= 2:
-      return float(0)
+  is_inside_polygon = True
+  poly = Polygon(origin_polygon_ijs)
+  for splited_polygon_ijs in splited_polygon_ijs_list:
+    for i, j in splited_polygon_ijs:
+      if not poly.covers(GeoPoint(i, j)):
+        is_inside_polygon = False
+        break
 
-    layer_number_point_ijs_pair = get_layer_number_point_ijs_pair(vertices, splited_polygon, layer_class)
-    total_point_count = 0
-    for layer_number, point_ijs in layer_number_point_ijs_pair.items():
-      if layer_number >= 0:
-        total_point_count += len(point_ijs)
+  return is_inside_polygon
 
-    # 分割されたポリゴンの内部に入っている DSM 点の数が 5 以下の場合 0点
-    if total_point_count <= 5:
-      return float(0)
 
-    # SUM（「クラス k の点の数」 / 「ポリゴン内部に入っている DSM 点の数」）^2
-    for layer_number, point_ijs in layer_number_point_ijs_pair.items():
-      if layer_number >= 0:
-        total_score += ((len(point_ijs) / total_point_count) ** 2)
+def merge_polygon_vertices(
+    origin_polygon_ijs: list[tuple[float, float]],
+    splited_polygon_ijs_list: list[list[tuple[float, float]]],
+):
+  """
+  分割されたポリゴンの頂点を元のポリゴンの頂点に合わせる(1px 範囲)
 
-  return total_score
+  Args:
+    origin_polygon_ijs (list[tuple[float, float]]): 元のポリゴンの頂点番号リスト
+    splited_polygon_ijs_list (list[list[tuple[float, float]]]): 分割されたポリゴン達の頂点番号リスト
+
+  Returns:
+    list[list[tuple[float, float]]]: ポリゴンの頂点に合わせて頂点を変更した分割されたポリゴン達の頂点番号リスト
+  """
+
+  merged_polygon_ijs_list: list[list[tuple[float, float]]] = []
+  for origin_polygon_ijs in splited_polygon_ijs_list:
+    merged_polygon_ijs: list[tuple[float, float]] = []
+    for from_ij in origin_polygon_ijs:
+      from_i, from_j = from_ij
+      merged_ij: tuple[int, int] = (from_i, from_j)
+      for to_i, to_j in origin_polygon_ijs:
+        if (
+            to_i - 1 <= from_i <= to_i + 1
+            and to_j - 1 <= from_j <= to_j + 1
+            and (to_i, to_j) != (from_i, from_j)
+        ):
+          merged_ij = (to_i, to_j)
+          break
+
+      merged_polygon_ijs.append(merged_ij)
+
+    merged_polygon_ijs = remove_same_vertices_on_polygon(merged_polygon_ijs)
+    if len(merged_polygon_ijs) >= 3 and Polygon(merged_polygon_ijs).is_valid:
+      merged_polygon_ijs_list.append(merged_polygon_ijs)
+    else:
+      # 座標移動によって不正ポリゴンになる可能性がある場合は、移動した座標をもとに戻す
+      merged_polygon_ijs_list.append(origin_polygon_ijs)
+
+  return merged_polygon_ijs_list
+
+
+def get_intersection_of_polygons(polygon1_ij: list[tuple[float, float]], polygon2_ij: list[tuple[float, float]]):
+  """
+  ポリゴン同士の交差している領域を求める
+
+  Args:
+    polygon1_ij (list[tuple[float, float]]): ポリゴンの頂点番号リスト
+    polygon2_ij (list[tuple[float, float]]): ポリゴンの頂点番号リスト
+
+  Returns:
+    list[Polygon]: 交差している領域のポリゴンリスト
+  """
+
+  # 差分を取得
+  polygon1 = Polygon(polygon1_ij)
+  polygon2 = Polygon(polygon2_ij)
+
+  intersection: Union[MultiPolygon, Polygon] = polygon1.intersection(polygon2)
+  intersection_polys: list[Polygon] = []
+  if isinstance(intersection, Polygon):
+    intersection_polys = [intersection]
+  elif isinstance(intersection, MultiPolygon):
+    intersection_polys = [intersection_poly for intersection_poly in intersection]
+
+  return intersection_polys
+
+
+def is_integer_value(value: float) -> bool:
+  """
+  float 型の数値が整数（小数点以下が 0）であるかを確認する関数。
+  """
+  return value % 1 == 0
+
+
+def remove_same_vertices_on_polygon(polygon_ijs: list[tuple[float, float]]):
+  """
+  ポリゴン内部に同じ点が連続にあるのを防ぐ
+
+  Args:
+    polygon_ij (list[tuple[float, float]]): ポリゴンの頂点番号リスト
+
+  Returns:
+    list[tuple[float, float]]: 交差している領域のポリゴンリスト
+  """
+
+  new_polygon_ijs = []
+  for current_polygon_ij in polygon_ijs:
+    if len(new_polygon_ijs) == 0:
+      new_polygon_ijs.append(current_polygon_ij)
+    else:
+      prev_polygon_ij = new_polygon_ijs[-1]
+      next_polygon_ij = new_polygon_ijs[0]
+
+      if prev_polygon_ij != current_polygon_ij and next_polygon_ij != current_polygon_ij:
+        new_polygon_ijs.append(current_polygon_ij)
+
+  return new_polygon_ijs

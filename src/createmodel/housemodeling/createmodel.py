@@ -81,7 +81,7 @@ def CreateModel(
   cartesian_points, inner_edge, outer_edge = optimize_roof_edge(shape, cartesian_corners_xy, edges)
   result_edges = inner_edge + outer_edge
   outer_polygon, inner_polygons = extract_roof_surface(cartesian_points, result_edges)
-  roof_polygon_info = RoofPolygonInfo(cartesian_points, inner_polygons, roof_layer_info, debug_mode)
+  RoofPolygonInfo(cartesian_points, inner_polygons, roof_layer_info, debug_mode)
 
   # 平面直角座標から画像座標への変換
   image_points = [
