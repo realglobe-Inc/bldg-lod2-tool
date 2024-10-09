@@ -326,41 +326,42 @@ def get_new_intersection_polygon_ijs(
           (round(coord[0]), round(coord[1])) for coord in origin_intersection_polygon_ijs
       ]
       new_intersection_polygon_ijs = remove_same_vertices_on_polygon(new_intersection_polygon_ijs)
-      if len(new_intersection_polygon_ijs) >= 3 and Polygon(new_intersection_polygon_ijs).is_valid:
-        new_intersection_polygon_ijs_list.append(new_intersection_polygon_ijs)
-      else:
-        # 座標移動によって不正ポリゴンになる可能性がある場合は、移動した座標をもとに戻す
-        new_intersection_polygon_ijs_list.append(origin_intersection_polygon_ijs)
+      if len(new_intersection_polygon_ijs) >= 3:
+        if Polygon(new_intersection_polygon_ijs).is_valid:
+          new_intersection_polygon_ijs_list.append(new_intersection_polygon_ijs)
+        else:
+          # 座標移動によって不正ポリゴンになる可能性がある場合は、移動した座標をもとに戻す
+          new_intersection_polygon_ijs_list.append(origin_intersection_polygon_ijs)
 
   merged_polygon_ijs_list = merge_polygon_vertices(polygon_ijs, new_intersection_polygon_ijs_list)
-  is_polygons_inside_polygon(polygon_ijs, merged_polygon_ijs_list)
-  return merged_polygon_ijs_list
+  filterd_polygon_ijs_list = []
+  for merged_polygon_ijs in merged_polygon_ijs_list:
+    if is_polygon_inside_polygon(polygon_ijs, merged_polygon_ijs):
+      print('inside')
+      filterd_polygon_ijs_list.append(merged_polygon_ijs)
+    else:
+      print('outside')
+      filterd_polygon_ijs_list.append(merged_polygon_ijs)
+
+  return filterd_polygon_ijs_list
 
 
-def is_polygons_inside_polygon(
-    origin_polygon_ijs: list[tuple[float, float]],
-    splited_polygon_ijs_list: list[list[tuple[float, float]]],
-):
+def is_polygon_inside_polygon(polygon_large: list[tuple[float, float]], polygon_small: list[tuple[float, float]]):
   """
   ポリゴンのに他のポリゴン達が含まれているか確認する
 
   Args:
-    origin_polygon_ijs (list[tuple[float, float]]): 元のポリゴンの頂点番号リスト
-    splited_polygon_ijs_list (list[list[tuple[float, float]]]): 分割されたポリゴン達の頂点番号リスト
+    polygon_large (list[tuple[float, float]]): ポリゴンの頂点番号リスト
+    polygon_small (list[tuple[float, float]]): ポリゴンの頂点番号リスト
 
   Returns:
     bool: 各頂点の(i, j)座標のリスト
   """
+  poly_small = Polygon(polygon_small)
+  poly_large = Polygon(polygon_large)
 
-  is_inside_polygon = True
-  poly = Polygon(origin_polygon_ijs)
-  for splited_polygon_ijs in splited_polygon_ijs_list:
-    for i, j in splited_polygon_ijs:
-      if not poly.covers(GeoPoint(i, j)):
-        is_inside_polygon = False
-        break
-
-  return is_inside_polygon
+  result = poly_small.difference(poly_large)
+  return result.is_empty
 
 
 def merge_polygon_vertices(
@@ -396,11 +397,12 @@ def merge_polygon_vertices(
       merged_polygon_ijs.append(merged_ij)
 
     merged_polygon_ijs = remove_same_vertices_on_polygon(merged_polygon_ijs)
-    if len(merged_polygon_ijs) >= 3 and Polygon(merged_polygon_ijs).is_valid:
-      merged_polygon_ijs_list.append(merged_polygon_ijs)
-    else:
-      # 座標移動によって不正ポリゴンになる可能性がある場合は、移動した座標をもとに戻す
-      merged_polygon_ijs_list.append(origin_polygon_ijs)
+    if len(merged_polygon_ijs) >= 3:
+      if Polygon(merged_polygon_ijs).is_valid:
+        merged_polygon_ijs_list.append(merged_polygon_ijs)
+      else:
+        # 座標移動によって不正ポリゴンになる可能性がある場合は、移動した座標をもとに戻す
+        merged_polygon_ijs_list.append(origin_polygon_ijs)
 
   return merged_polygon_ijs_list
 

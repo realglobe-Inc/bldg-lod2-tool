@@ -452,16 +452,17 @@ class RoofLayerInfo:
       # 輪郭を単純化
       simplified_contours = []
       layer_outline_ijs: list[list[tuple[int, int]]] = []
-      epsilon_factor = 0.02  # 輪郭の単純化度合いの調整 (この値を調整するとポリゴンの単純化が変わる)
+      epsilon_factor = 0.01  # 輪郭の単純化度合いの調整 (この値を調整するとポリゴンの単純化が変わる)
       for contour in contours:
         epsilon = epsilon_factor * cv2.arcLength(contour, True)  # 輪郭の長さに基づいてepsilonを計算
         approx = cv2.approxPolyDP(contour, epsilon, True)  # 輪郭を単純化
         layer_outline_ij = [(point[0][0], point[0][1]) for point in approx]
 
         # 頂点が二つ以下の場合はポリゴンではない
-        if len(layer_outline_ij) >= 3 and Polygon(layer_outline_ij).is_valid:
-          simplified_contours.append(approx)
-          layer_outline_ijs.append(layer_outline_ij)
+        if len(layer_outline_ij) >= 3:
+          if Polygon(layer_outline_ij).is_valid:
+            simplified_contours.append(approx)
+            layer_outline_ijs.append(layer_outline_ij)
 
       self._layer_number_layer_outline_ijs_list_pair[layer_number] = layer_outline_ijs
 

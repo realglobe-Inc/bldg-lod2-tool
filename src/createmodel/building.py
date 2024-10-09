@@ -7,12 +7,14 @@ import pickle
 from shapely.geometry import Polygon
 from shapely.geometry import JOIN_STYLE
 
+
 from .lasmanager import LasManager
 from .message import CreateModelMessage
 from .param import CreateModelParam
 from .createmodelexception import CreateModelException
 from .buildingmodeling import CreateModel as CreateBuildingModel
-from .housemodeling import CreateModel as CreateHouseModel
+from .housemodeling.createmodel import CreateHouseModel
+
 from .buildingclassification import BuildingClass, ClassifyBuilding
 
 
