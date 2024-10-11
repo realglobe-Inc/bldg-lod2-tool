@@ -1,8 +1,11 @@
+import os
 from typing import Union
+
 import numpy as np
 import numpy.typing as npt
 from shapely.geometry import Polygon, MultiPolygon
 from shapely.geometry import Point as GeoPoint
+import cv2
 
 from ..roof_layer_info import RoofLayerInfo
 from ..model_surface_creation.utils.geometry import Point
@@ -286,6 +289,7 @@ def get_new_intersection_polygon_ijs(
     vertices: list[Point],
     polygon: list[int],
     roof_layer_info: RoofLayerInfo,
+    debug_mode: bool = False,
 ):
   """
 
@@ -308,11 +312,11 @@ def get_new_intersection_polygon_ijs(
       if layer_number >= 0
   ]
 
-  new_intersection_polygon_ijs_list: list[list[tuple[float, float]]] = []
+  intersection_polygon_ijs_list: list[list[tuple[float, float]]] = []
   polygon_ijs = [point_id_to_ij(vertices, point_id) for point_id in polygon]
   for layer_number in layer_numbers:
     # 屋根のレイヤー番号別にポリゴン化
-    layer_outline_ijs_list = roof_layer_info.layer_number_layer_outline_ijs_list_pair[layer_number]
+    layer_outline_ijs_list = roof_layer_info.layer_number_layer_outline_polygons_list_pair[layer_number]
     for layer_outline_ijs in layer_outline_ijs_list:
       # 屋根のレイヤーのポリゴンと屋根線内部ポリゴンが被っている領域のポリゴン
       intersection_polys = get_intersection_of_polygons(polygon_ijs, layer_outline_ijs)
@@ -328,12 +332,32 @@ def get_new_intersection_polygon_ijs(
       new_intersection_polygon_ijs = remove_same_vertices_on_polygon(new_intersection_polygon_ijs)
       if len(new_intersection_polygon_ijs) >= 3:
         if Polygon(new_intersection_polygon_ijs).is_valid:
-          new_intersection_polygon_ijs_list.append(new_intersection_polygon_ijs)
+          intersection_polygon_ijs_list.append(new_intersection_polygon_ijs)
         else:
           # 座標移動によって不正ポリゴンになる可能性がある場合は、移動した座標をもとに戻す
-          new_intersection_polygon_ijs_list.append(origin_intersection_polygon_ijs)
+          intersection_polygon_ijs_list.append(origin_intersection_polygon_ijs)
 
-  merged_polygon_ijs_list = merge_polygon_vertices(polygon_ijs, new_intersection_polygon_ijs_list)
+  removed_small_polygon_ijs_list = [
+      intersection_polygon_ijs for intersection_polygon_ijs in intersection_polygon_ijs_list
+      if Polygon(intersection_polygon_ijs).area > 15
+  ]
+
+  other_polygon: Union[MultiPolygon, Polygon] = Polygon(polygon_ijs)
+  for removed_small_polygon_ijs in removed_small_polygon_ijs_list:
+    removed_small_poly = Polygon(removed_small_polygon_ijs)
+    other_polygon = other_polygon.difference(removed_small_poly)
+
+  splited_polygon_ijs_list = intersection_polygon_ijs_list
+  if not other_polygon.is_empty:
+    if isinstance(other_polygon, MultiPolygon):
+      for poly in other_polygon:
+        polygon = [coord for coord in poly.exterior.coords[:-1]]
+        splited_polygon_ijs_list.append(polygon)
+    elif isinstance(other_polygon, Polygon):
+      polygon = [coord for coord in other_polygon.exterior.coords[:-1]]
+      splited_polygon_ijs_list.append(polygon)
+
+  merged_polygon_ijs_list = merge_polygon_vertices(polygon_ijs, splited_polygon_ijs_list)
   filterd_polygon_ijs_list = []
   for merged_polygon_ijs in merged_polygon_ijs_list:
     if is_polygon_inside_polygon(polygon_ijs, merged_polygon_ijs):
@@ -342,6 +366,27 @@ def get_new_intersection_polygon_ijs(
     else:
       print('outside')
       filterd_polygon_ijs_list.append(merged_polygon_ijs)
+
+  if debug_mode:
+    height, width = roof_layer_info.rgb_image.shape[:2]
+    image_layer_splited_polygons_image = np.full((height, width, 3), 255, dtype=np.uint8)
+
+    polygons_np = [
+        np.array(merged_polygon_ijs, np.int32)[:, ::-1].reshape((-1, 1, 2))
+        for merged_polygon_ijs in merged_polygon_ijs_list
+    ]
+    edge_color = roof_layer_info.get_color(RoofLayerInfo.ROOF_LINE_POINT)
+    cv2.polylines(image_layer_splited_polygons_image, polygons_np, isClosed=True, color=edge_color, thickness=1)
+
+    point_color = roof_layer_info.get_color(RoofLayerInfo.ROOF_VERTICE_POINT)
+    for filterd_polygon_ijs in filterd_polygon_ijs_list:
+      for i, j in filterd_polygon_ijs:
+        cv2.circle(image_layer_splited_polygons_image, (round(j), round(i)), 0, point_color, -1)
+
+    image_layer_splited_polygons_path = os.path.join(roof_layer_info.debug_dir, 'layer_splited_polygons.png')
+    cv2.imwrite(image_layer_splited_polygons_path, image_layer_splited_polygons_image)
+
+  print(filterd_polygon_ijs_list)
 
   return filterd_polygon_ijs_list
 
@@ -425,10 +470,11 @@ def get_intersection_of_polygons(polygon1_ij: list[tuple[float, float]], polygon
 
   intersection: Union[MultiPolygon, Polygon] = polygon1.intersection(polygon2)
   intersection_polys: list[Polygon] = []
-  if isinstance(intersection, Polygon):
-    intersection_polys = [intersection]
-  elif isinstance(intersection, MultiPolygon):
-    intersection_polys = [intersection_poly for intersection_poly in intersection]
+  if not intersection.is_empty:
+    if isinstance(intersection, Polygon):
+      intersection_polys = [intersection]
+    elif isinstance(intersection, MultiPolygon):
+      intersection_polys = [intersection_poly for intersection_poly in intersection]
 
   return intersection_polys
 

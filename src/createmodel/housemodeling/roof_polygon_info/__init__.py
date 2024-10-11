@@ -53,10 +53,12 @@ class RoofPolygonInfo:
     new_inner_polygons: list[list[int]] = []
     for inner_polygon in self._inner_polygons:
       if is_splitable_poligon(self._image_vertices, inner_polygon, self._layer_class_origin):
+        pass
         get_new_intersection_polygon_ijs(
             self._image_vertices,
             inner_polygon,
             self._roof_layer_info,
+            self._debug_mode,
         )
 
       else:

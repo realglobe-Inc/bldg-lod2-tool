@@ -8,7 +8,8 @@ import numpy as np
 import numpy.typing as npt
 from PIL import Image
 import cv2
-from shapely.geometry import Polygon
+from shapely.geometry import Polygon, MultiPolygon
+from shapely.ops import unary_union
 
 
 class RoofLayerInfo:
@@ -37,6 +38,17 @@ class RoofLayerInfo:
     return self._rgb_image
 
   @property
+  def debug_dir(self):
+    """
+    デバッグ用ディレクトリー
+
+    Returns:
+      npt.NDArray[np.float_]: デバッグ用ディレクトリー
+    """
+
+    return self._debug_dir
+
+  @property
   def layer_class(self):
     """
     DSM点群の画像座標 (i,j) 二次元アレイに壁点を起点としてクラスタリングした屋根のレイヤー番号を記録したもの
@@ -48,7 +60,7 @@ class RoofLayerInfo:
     return self._layer_class
 
   @property
-  def layer_number_layer_outline_ijs_list_pair(self):
+  def layer_number_layer_outline_polygons_list_pair(self):
     """
     クラスタリングされたレイヤー番号に対応するレイヤーのポリゴンリスト
 
@@ -56,7 +68,7 @@ class RoofLayerInfo:
       dict[int, list[list[tuple[int, int]]]]: クラスタリングされたレイヤー番号に対応するレイヤーのポリゴンリスト
     """
 
-    return self._layer_number_layer_outline_ijs_list_pair
+    return self._layer_number_layer_outline_polygons_list_pair
 
   @property
   def wall_point_positions(self):
@@ -95,7 +107,6 @@ class RoofLayerInfo:
       debug_mode (bool): デバッグモード
     """
 
-    self.debug_dir: str = debug_dir
     self._rgb_image = rgb_image.copy()
     self._layer_points_xyz = layer_points_xyz
     self._debug_mode = debug_mode
@@ -424,52 +435,107 @@ class RoofLayerInfo:
       file_name (str): 記録するファイル名
     """
 
-    self._layer_number_layer_outline_ijs_list_pair: dict[int, list[list[tuple[int, int]]]] = {}
+    self._layer_number_layer_outline_polygons_list_pair: dict[int, list[list[tuple[int, int]]]] = {}
 
     height, width = layer_class.shape
 
-    # 空の RGB 画像を作成 (すべて白で初期化)
-    image_rgb = np.full((height, width, 3), 255, dtype=np.uint8)
-    outline_image_rgb = np.full((height, width, 3), 255, dtype=np.uint8)
-
-    layer_numbers: set[int] = set()
+    layer_number_point_ijs_pair: dict[int, list[tuple[int, int]]] = {}
 
     # i, j に基づいて各ピクセルに色を割り当て
     for i in range(height):
       for j in range(width):
         layer_number = layer_class[i, j]
-        layer_numbers.add(layer_number)
-        image_rgb[i, j] = self.get_color(layer_number)  # レイヤーに対応する色を設定
+        layer_number_point_ijs_pair[layer_number] = layer_number_point_ijs_pair.get(layer_number) or []
+        layer_number_point_ijs_pair[layer_number].append((i, j))
 
+    # 空の RGB 画像を作成 (すべて白で初期化)
+    image_rgb = np.full((height, width, 3), 255, dtype=np.uint8)
+    outline_all_image_rgb = np.full((height, width, 3), 255, dtype=np.uint8)
+
+    search_color = [1, 1, 1]
+
+    layer_numbers = list(layer_number_point_ijs_pair.keys())
+    layer_numbers.sort()
+
+    # 前回のポリゴンリスト
+    last_merged_polygons: list[list[tuple[int, int]]] = []
     for layer_number in layer_numbers:
-      if layer_number < 0:
+      if layer_number == -1:
         continue
 
-      rgb_color = self.get_color(layer_number)
-      mask = cv2.inRange(image_rgb, np.array(rgb_color), np.array(rgb_color))
+      point_ijs = layer_number_point_ijs_pair.get(layer_number)
+      if point_ijs is None:
+        continue
+
+      # i, j に基づいて各ピクセルに色を割り当て
+      for i, j in point_ijs:
+        image_rgb[i, j] = search_color  # マージしたポリゴンの色
+
+      rgb_color = self.get_color(layer_number)  # レイヤーに対応する色
+      mask = cv2.inRange(image_rgb, np.array(search_color), np.array(search_color))
       contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
       # 輪郭を単純化
-      simplified_contours = []
-      layer_outline_ijs: list[list[tuple[int, int]]] = []
+      simplified_polygons: list[list[tuple[int, int]]] = []
       epsilon_factor = 0.01  # 輪郭の単純化度合いの調整 (この値を調整するとポリゴンの単純化が変わる)
       for contour in contours:
         epsilon = epsilon_factor * cv2.arcLength(contour, True)  # 輪郭の長さに基づいてepsilonを計算
         approx = cv2.approxPolyDP(contour, epsilon, True)  # 輪郭を単純化
-        layer_outline_ij = [(point[0][0], point[0][1]) for point in approx]
+        merged_outline_polygon = [(point[0][1], point[0][0]) for point in approx]
 
         # 頂点が二つ以下の場合はポリゴンではない
-        if len(layer_outline_ij) >= 3:
-          if Polygon(layer_outline_ij).is_valid:
-            simplified_contours.append(approx)
-            layer_outline_ijs.append(layer_outline_ij)
+        if len(merged_outline_polygon) >= 3:
+          if Polygon(merged_outline_polygon).is_valid:
+            simplified_polygons.append(merged_outline_polygon)
 
-      self._layer_number_layer_outline_ijs_list_pair[layer_number] = layer_outline_ijs
+      # 今回までマージしたポリゴン
+      current_merged_polygons: list[list[tuple[int, int]]] = []
+      merged_polygons: list[list[tuple[int, int]]] = simplified_polygons
+      merged_polygons.extend(last_merged_polygons)
+      merged_polygons_union = unary_union([Polygon(p) for p in merged_polygons])
+      if not merged_polygons_union.is_empty:
+        if isinstance(merged_polygons_union, MultiPolygon):
+          for poly in merged_polygons_union:
+            polygon = [coord for coord in poly.exterior.coords[:-1]]
+            current_merged_polygons.append(polygon)
+        elif isinstance(merged_polygons_union, Polygon):
+          polygon = [coord for coord in merged_polygons_union.exterior.coords[:-1]]
+          current_merged_polygons.append(polygon)
+
+      last_merged_polygons_union = unary_union([Polygon(p) for p in last_merged_polygons])
+      current_merged_polygons_union = unary_union([Polygon(p) for p in current_merged_polygons])
+
+      # # 現在ポリゴン = 今回までマージしたポリゴン - 前回までマージしたのポリゴンリスト
+      difference = current_merged_polygons_union.difference(last_merged_polygons_union)
+      current_polygons = []
+      if not difference.is_empty:
+        if isinstance(difference, MultiPolygon):
+          for poly in difference:
+            polygon = [coord for coord in poly.exterior.coords[:-1]]
+            current_polygons.append(polygon)
+        elif isinstance(difference, Polygon):
+          polygon = [coord for coord in difference.exterior.coords[:-1]]
+          current_polygons.append(polygon)
+
+      self._layer_number_layer_outline_polygons_list_pair[layer_number] = current_polygons
+
+      # 前回までマージしたのポリゴンリスト
+      last_merged_polygons = current_merged_polygons
 
       # 輪郭線を描画 (塗りつぶさない)
-      cv2.polylines(outline_image_rgb, simplified_contours, isClosed=True, color=rgb_color, thickness=1)
+      if self._debug_mode:
+        outline_part_image_rgb = np.full((height, width, 3), 255, dtype=np.uint8)
+
+        polygons_np = [np.array(polygon, np.int32)[:, ::-1].reshape((-1, 1, 2)) for polygon in current_polygons]
+        if len(polygons_np) > 0:
+          cv2.fillPoly(outline_all_image_rgb, polygons_np, color=rgb_color)
+          cv2.polylines(outline_part_image_rgb, polygons_np, isClosed=True, color=rgb_color, thickness=1)
+
+        outline_part_image_rgb = cv2.cvtColor(outline_part_image_rgb, cv2.COLOR_BGR2RGB)
+        outline_part_image_path = os.path.join(self._debug_dir, f"layer_outline_{layer_number}.png")
+        cv2.imwrite(outline_part_image_path, outline_part_image_rgb)
 
     if self._debug_mode:
-      outline_image_rgb = cv2.cvtColor(outline_image_rgb, cv2.COLOR_BGR2RGB)
-      image_layer_path = os.path.join(self._debug_dir, file_name)
-      cv2.imwrite(image_layer_path, outline_image_rgb)
+      outline_all_image_rgb = cv2.cvtColor(outline_all_image_rgb, cv2.COLOR_BGR2RGB)
+      outline_all_image_path = os.path.join(self._debug_dir, file_name)
+      cv2.imwrite(outline_all_image_path, outline_all_image_rgb)
