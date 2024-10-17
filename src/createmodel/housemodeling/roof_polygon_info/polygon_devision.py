@@ -3,7 +3,7 @@ from typing import Union
 
 import numpy as np
 import numpy.typing as npt
-from shapely.geometry import Polygon, MultiPolygon
+from shapely.geometry import Polygon, MultiPolygon, LineString
 from shapely.geometry import Point as GeoPoint
 import cv2
 
@@ -297,13 +297,14 @@ def get_new_intersection_polygon_ijs(
   Args:
     vertices (list[Point]): 頂点リスト
     polygon (list[int]): ポリゴンの頂点番号リスト
-    roof_layer_info: RoofLayerInfo 計算結果
+    roof_layer_info (RoofLayerInfo): 屋根レイヤーの計算結果
+    debug_mode (bool): デバッグモード
 
   Returns:
     tuple[float, float]: 各頂点の(i, j)座標のリスト
   """
   # rgb_image = roof_layer_info.rgb_image.copy()
-  layer_class = roof_layer_info.layer_class.copy()
+  layer_class = roof_layer_info.layer_class
 
   layer_number_point_ijs_pair = get_layer_number_point_ijs_pair(vertices, polygon, layer_class)
 
@@ -357,9 +358,9 @@ def get_new_intersection_polygon_ijs(
       polygon = [coord for coord in other_polygon.exterior.coords[:-1]]
       splited_polygon_ijs_list.append(polygon)
 
-  merged_polygon_ijs_list = merge_polygon_vertices(polygon_ijs, splited_polygon_ijs_list)
-  filterd_polygon_ijs_list = []
-  for merged_polygon_ijs in merged_polygon_ijs_list:
+  fixed_polygon_ijs_list = fix_polygon_vertices(polygon_ijs, splited_polygon_ijs_list)
+  filterd_polygon_ijs_list: list[list[tuple[float, float]]] = []
+  for merged_polygon_ijs in fixed_polygon_ijs_list:
     if is_polygon_inside_polygon(polygon_ijs, merged_polygon_ijs):
       print('inside')
       filterd_polygon_ijs_list.append(merged_polygon_ijs)
@@ -368,27 +369,53 @@ def get_new_intersection_polygon_ijs(
       filterd_polygon_ijs_list.append(merged_polygon_ijs)
 
   if debug_mode:
-    height, width = roof_layer_info.rgb_image.shape[:2]
-    image_layer_splited_polygons_image = np.full((height, width, 3), 255, dtype=np.uint8)
+    save_layer_splited_polygons(roof_layer_info, fixed_polygon_ijs_list, filterd_polygon_ijs_list)
 
-    polygons_np = [
-        np.array(merged_polygon_ijs, np.int32)[:, ::-1].reshape((-1, 1, 2))
-        for merged_polygon_ijs in merged_polygon_ijs_list
-    ]
-    edge_color = roof_layer_info.get_color(RoofLayerInfo.ROOF_LINE_POINT)
-    cv2.polylines(image_layer_splited_polygons_image, polygons_np, isClosed=True, color=edge_color, thickness=1)
+  poly_to_index_poly_from_indexes_pair: dict[int, list[int]] = {}
+  poly_indexes_for_merging: set[int] = set()
+  filterd_polys = [Polygon(filterd_polygon_ijs) for filterd_polygon_ijs in filterd_polygon_ijs_list]
+  for poly_from_index, filterd_poly in enumerate(filterd_polys):
+    can_be_merged = filterd_poly.area <= 20
+    if can_be_merged:
+      max_intersection_length = 0
+      poly_to_index = -1
+      for poly_to_index_tmp, other_poly in enumerate(filterd_polys):
+        intersection = filterd_poly.intersection(other_poly)
+        if (
+            not intersection.is_empty
+            and isinstance(intersection, LineString)
+            and poly_to_index_tmp != poly_from_index
+        ):
+          if intersection.length > max_intersection_length:
+            max_intersection_length = intersection.length
+            poly_to_index = poly_to_index_tmp
 
-    point_color = roof_layer_info.get_color(RoofLayerInfo.ROOF_VERTICE_POINT)
-    for filterd_polygon_ijs in filterd_polygon_ijs_list:
-      for i, j in filterd_polygon_ijs:
-        cv2.circle(image_layer_splited_polygons_image, (round(j), round(i)), 0, point_color, -1)
+      if poly_to_index != -1:
+        poly_indexes_for_merging.add(poly_from_index)
+        poly_indexes_for_merging.add(poly_to_index)
+        poly_to_index_poly_from_indexes_pair[poly_to_index] = poly_to_index_poly_from_indexes_pair.get(poly_to_index) or []
+        poly_to_index_poly_from_indexes_pair[poly_to_index].append(poly_from_index)
 
-    image_layer_splited_polygons_path = os.path.join(roof_layer_info.debug_dir, 'layer_splited_polygons.png')
-    cv2.imwrite(image_layer_splited_polygons_path, image_layer_splited_polygons_image)
+  new_polygon_ijs_list = []
+  # 変化のないポリゴン
+  for poly_from_index, filterd_poly in enumerate(filterd_polys):
+    if poly_from_index not in poly_indexes_for_merging:
+      poly_from = filterd_polys[poly_from_index]
+      poly_from_ijs = [coord for coord in poly_from.exterior.coords[:-1]]
+      new_polygon_ijs_list.append(poly_from_ijs)
 
-  print(filterd_polygon_ijs_list)
+  # 合成されたポリゴン
+  for poly_from_index, poly_to_indexes in poly_to_index_poly_from_indexes_pair.items():
+    poly_from = filterd_polys[poly_from_index]
+    poly_tos = [filterd_polys[poly_to_index] for poly_to_index in poly_to_indexes]
+    merged_poly = poly_from
+    for poly_to in poly_tos:
+      merged_poly = merged_poly.union(poly_to)
 
-  return filterd_polygon_ijs_list
+    merged_poly_ijs = [coord for coord in merged_poly.exterior.coords[:-1]]
+    new_polygon_ijs_list.append(merged_poly_ijs)
+
+  return new_polygon_ijs_list
 
 
 def is_polygon_inside_polygon(polygon_large: list[tuple[float, float]], polygon_small: list[tuple[float, float]]):
@@ -409,7 +436,7 @@ def is_polygon_inside_polygon(polygon_large: list[tuple[float, float]], polygon_
   return result.is_empty
 
 
-def merge_polygon_vertices(
+def fix_polygon_vertices(
     origin_polygon_ijs: list[tuple[float, float]],
     splited_polygon_ijs_list: list[list[tuple[float, float]]],
 ):
@@ -424,7 +451,7 @@ def merge_polygon_vertices(
     list[list[tuple[float, float]]]: ポリゴンの頂点に合わせて頂点を変更した分割されたポリゴン達の頂点番号リスト
   """
 
-  merged_polygon_ijs_list: list[list[tuple[float, float]]] = []
+  fixed_polygon_ijs_list: list[list[tuple[float, float]]] = []
   for origin_polygon_ijs in splited_polygon_ijs_list:
     merged_polygon_ijs: list[tuple[float, float]] = []
     for from_ij in origin_polygon_ijs:
@@ -444,12 +471,12 @@ def merge_polygon_vertices(
     merged_polygon_ijs = remove_same_vertices_on_polygon(merged_polygon_ijs)
     if len(merged_polygon_ijs) >= 3:
       if Polygon(merged_polygon_ijs).is_valid:
-        merged_polygon_ijs_list.append(merged_polygon_ijs)
+        fixed_polygon_ijs_list.append(merged_polygon_ijs)
       else:
         # 座標移動によって不正ポリゴンになる可能性がある場合は、移動した座標をもとに戻す
-        merged_polygon_ijs_list.append(origin_polygon_ijs)
+        fixed_polygon_ijs_list.append(origin_polygon_ijs)
 
-  return merged_polygon_ijs_list
+  return fixed_polygon_ijs_list
 
 
 def get_intersection_of_polygons(polygon1_ij: list[tuple[float, float]], polygon2_ij: list[tuple[float, float]]):
@@ -509,3 +536,39 @@ def remove_same_vertices_on_polygon(polygon_ijs: list[tuple[float, float]]):
         new_polygon_ijs.append(current_polygon_ij)
 
   return new_polygon_ijs
+
+
+def save_layer_splited_polygons(
+    roof_layer_info: RoofLayerInfo,
+    fixed_polygon_ijs_list: list[list[tuple[float, float]]],
+    filterd_polygon_ijs_list: list[list[tuple[float, float]]],
+):
+  """
+  ポリゴン同士の交差している領域を求める
+
+  Args:
+    roof_layer_info (RoofLayerInfo): 屋根レイヤーの計算結果
+    fixed_polygon_ijs_list (list[list[tuple[float, float]]]): ポリゴンの(i,j)頂点のリスト
+    filterd_polygon_ijs_list (list[list[tuple[float, float]]]): ポリゴンの(i,j)頂点のリスト
+
+  Returns:
+    list[Polygon]: 交差している領域のポリゴンリスト
+  """
+
+  height, width = roof_layer_info.rgb_image.shape[:2]
+  image_layer_splited_polygons_image = np.full((height, width, 3), 255, dtype=np.uint8)
+
+  polygons_np = [
+      np.array(merged_polygon_ijs, np.int32)[:, ::-1].reshape((-1, 1, 2))
+      for merged_polygon_ijs in fixed_polygon_ijs_list
+  ]
+  edge_color = roof_layer_info.get_color(RoofLayerInfo.ROOF_LINE_POINT)
+  cv2.polylines(image_layer_splited_polygons_image, polygons_np, isClosed=True, color=edge_color, thickness=1)
+
+  point_color = roof_layer_info.get_color(RoofLayerInfo.ROOF_VERTICE_POINT)
+  for filterd_polygon_ijs in filterd_polygon_ijs_list:
+    for i, j in filterd_polygon_ijs:
+      cv2.circle(image_layer_splited_polygons_image, (round(j), round(i)), 0, point_color, -1)
+
+  image_layer_splited_polygons_path = os.path.join(roof_layer_info.debug_dir, 'layer_splited_polygons.png')
+  cv2.imwrite(image_layer_splited_polygons_path, image_layer_splited_polygons_image)
