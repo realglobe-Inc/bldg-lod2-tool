@@ -13,6 +13,10 @@ from shapely.ops import unary_union
 
 
 class RoofLayerInfo:
+  """
+  DSM点群から屋根の階層分離をするための情報
+  """
+
   NO_POINT = -1
   NOISE_POINT = -2
   ROOF_LINE_POINT = -3
@@ -27,7 +31,7 @@ class RoofLayerInfo:
   }
 
   @property
-  def rgb_image(self):
+  def dsm_grid_rgbs(self):
     """
     DSM点群のRGB画像
 
@@ -35,7 +39,7 @@ class RoofLayerInfo:
       npt.NDArray[np.float_]: DSM点群のRGB画像
     """
 
-    return self._rgb_image
+    return self._dsm_grid_rgbs
 
   @property
   def debug_dir(self):
@@ -60,7 +64,7 @@ class RoofLayerInfo:
     return self._layer_class
 
   @property
-  def layer_number_layer_outline_polygons_list_pair(self):
+  def layer_number_layer_area_polygon_ijs_list_pair(self):
     """
     クラスタリングされたレイヤー番号に対応するレイヤーのポリゴンリスト
 
@@ -68,7 +72,7 @@ class RoofLayerInfo:
       dict[int, list[list[tuple[int, int]]]]: クラスタリングされたレイヤー番号に対応するレイヤーのポリゴンリスト
     """
 
-    return self._layer_number_layer_outline_polygons_list_pair
+    return self._layer_number_layer_area_polygon_ijs_list_pair
 
   @property
   def wall_point_positions(self):
@@ -92,8 +96,8 @@ class RoofLayerInfo:
 
   def __init__(
       self,
-      layer_points_xyz: npt.NDArray[np.float_],
-      rgb_image: npt.NDArray[np.int_],
+      layer_grid_xyzs: npt.NDArray[np.float_],
+      dsm_grid_rgbs: npt.NDArray[np.int_],
       debug_dir: str,
       debug_mode: bool = False,
   ):
@@ -101,23 +105,23 @@ class RoofLayerInfo:
     屋根線をイメージとして保存（デバッグ用）
 
     Args:
-      layer_points_xyz: DSM点群のRGB画像(i,j)のxyz座標
-      rgb_image (npt.NDArray[np.uint8]): DSM点群のRGB画像
+      layer_grid_xyzs: DSM点群のRGB画像(i,j)のxyz座標
+      dsm_grid_rgbs (npt.NDArray[np.uint8]): DSM点群のRGB画像
       debug_dir (str): 記録するファイル名
       debug_mode (bool): デバッグモード
     """
 
-    self._rgb_image = rgb_image.copy()
-    self._layer_points_xyz = layer_points_xyz
+    self._dsm_grid_rgbs = dsm_grid_rgbs.copy()
+    self._layer_grid_xyzs = layer_grid_xyzs
     self._debug_mode = debug_mode
     self._debug_dir = debug_dir
-    self._height, self._width = layer_points_xyz.shape[:2]
+    self._height, self._width = layer_grid_xyzs.shape[:2]
     self._layer_class = np.full((self._height, self._width), RoofLayerInfo.NO_POINT, dtype=np.int_)
     self._layer_class_length = 0
 
     self._color_palette = self.get_color_palette(RoofLayerInfo.RESERVED_COLOR.values())
-    self._wall_point_positions = self._get_wall_point_positions(self._layer_points_xyz)
-    self._xy_ij = self._get_xy_ij_pair(self._layer_points_xyz)
+    self._wall_point_positions = self._get_wall_point_positions(self._layer_grid_xyzs)
+    self._xy_ij = self._get_xy_ij_pair(self._layer_grid_xyzs)
     self._init_layer_class()
     self._detect_and_mark_noise()
 
@@ -160,13 +164,13 @@ class RoofLayerInfo:
 
     return self._xy_ij[(x, y)]
 
-  def _get_wall_point_positions(self, layer_points_xyz: npt.NDArray[np.float_]):
+  def _get_wall_point_positions(self, layer_grid_xyzs: npt.NDArray[np.float_]):
     """壁の点を設定する"""
 
-    height, width = layer_points_xyz.shape[:2]
+    height, width = layer_grid_xyzs.shape[:2]
     wall_point_positions: list[tuple[float, float]] = []
-    for i, layer_points_xyz_j in enumerate(layer_points_xyz):
-      for j, (x, y, z1) in enumerate(layer_points_xyz_j):
+    for i, layer_grid_xyzs_j in enumerate(layer_grid_xyzs):
+      for j, (x, y, z1) in enumerate(layer_grid_xyzs_j):
         if (x == 0 and y == 0 and z1 == 0):
           continue
 
@@ -174,19 +178,19 @@ class RoofLayerInfo:
         for di, dj in [(-1, 0), (1, 0), (0, -1), (0, 1)]:
           i2, j2 = i + di, j + dj
           if 0 <= i2 < height and 0 <= j2 < width:
-            z2s.append(layer_points_xyz[i2, j2, 2])
+            z2s.append(layer_grid_xyzs[i2, j2, 2])
 
         if self._is_wall_index(z1, z2s):
           wall_point_positions.append((i, j))
 
     return wall_point_positions
 
-  def _get_xy_ij_pair(self, layer_points_xyz: npt.NDArray[np.float_]):
+  def _get_xy_ij_pair(self, layer_grid_xyzs: npt.NDArray[np.float_]):
     """DSM点群の (x, y) の座標をDSM点群の画像座標である (i, j) へ変換できるようにインデクスを作る"""
 
     xy_ij: dict[tuple[float, float], tuple[int, int]] = {}
-    for i, layer_points_xyz_j in enumerate(layer_points_xyz):
-      for j, (x, y, z1) in enumerate(layer_points_xyz_j):
+    for i, layer_grid_xyzs_j in enumerate(layer_grid_xyzs):
+      for j, (x, y, z1) in enumerate(layer_grid_xyzs_j):
         xy_ij[(x, y)] = (i, j)
 
     return xy_ij
@@ -220,7 +224,7 @@ class RoofLayerInfo:
       i, j = queue.popleft()
 
       # 現在の点の z 座標
-      current_z = self._layer_points_xyz[i, j, 2]
+      current_z = self._layer_grid_xyzs[i, j, 2]
 
       # 前後左右の点を探索
       for di, dj in directions:
@@ -229,7 +233,7 @@ class RoofLayerInfo:
         # 境界チェック
         if 0 <= i2 < self._height and 0 <= j2 < self._width:
           if self._layer_class[i2, j2] == RoofLayerInfo.NO_POINT:
-            neighbor_z = self._layer_points_xyz[i2, j2, 2]
+            neighbor_z = self._layer_grid_xyzs[i2, j2, 2]
 
             # z 座標の差が RoofLayerInfo.WALL_HEIGHT_THRESHOLD 以下なら、同じレイヤーと見なす
             if abs(current_z - neighbor_z) <= RoofLayerInfo.WALL_HEIGHT_THRESHOLD:
@@ -296,7 +300,7 @@ class RoofLayerInfo:
     """
     DSM点群のRGB画像原本をイメージとして保存（デバッグ用）
     """
-    image_origin = Image.fromarray(self._rgb_image, "RGB")
+    image_origin = Image.fromarray(self._dsm_grid_rgbs, "RGB")
     image_origin_path = os.path.join(self._debug_dir, 'origin.png')
     image_origin.save(image_origin_path)
 
@@ -312,11 +316,11 @@ class RoofLayerInfo:
       wall_point_positions (list[tuple[int, int]]): DSM点群のRGB画像で壁の点の位置(i, j)
       file_name (str): 記録するファイル名
     """
-    rgb_image_wall_line = self._rgb_image.copy()
+    dsm_grid_rgbs_wall_line = self._dsm_grid_rgbs.copy()
     for i, j in wall_point_positions:
-      rgb_image_wall_line[i, j] = [255, 0, 0]
+      dsm_grid_rgbs_wall_line[i, j] = [255, 0, 0]
 
-    image_wall_line = Image.fromarray(rgb_image_wall_line, "RGB")
+    image_wall_line = Image.fromarray(dsm_grid_rgbs_wall_line, "RGB")
     image_wall_line_path = os.path.join(self._debug_dir, file_name)
     image_wall_line.save(image_wall_line_path)
 
@@ -345,7 +349,7 @@ class RoofLayerInfo:
 
   def save_roof_line_image(
       self,
-      rgb_image: npt.NDArray[np.uint8],
+      dsm_grid_rgbs: npt.NDArray[np.uint8],
       roof_lines: set[tuple[tuple[int, int], tuple[int, int]]],
       file_name: str = 'roof_line.png',
   ):
@@ -353,13 +357,13 @@ class RoofLayerInfo:
     屋根線をイメージとして保存（デバッグ用）
 
     Args:
-      rgb_image (npt.NDArray[np.uint8]): DSM点群のRGB画像
+      dsm_grid_rgbs (npt.NDArray[np.uint8]): DSM点群のRGB画像
       roof_lines (set[tuple[tuple[int, int], tuple[int, int]]]): 線のリスト
       file_name (str): 記録するファイル名
     """
 
     # RGB画像データをBGRに変換（OpenCVはBGRを使用）
-    image_roof_line = cv2.cvtColor(rgb_image.copy(), cv2.COLOR_RGB2BGR)
+    image_roof_line = cv2.cvtColor(dsm_grid_rgbs.copy(), cv2.COLOR_RGB2BGR)
 
     # 線と点を一緒に描画
     for start_image_pos, end_image_pos in roof_lines:
@@ -426,7 +430,7 @@ class RoofLayerInfo:
 
     return self._color_palette[color_index]
 
-  def _init_layer_number_outline_ij_pair(self, layer_class: np.ndarray, file_name: str = 'layer_outline.png'):
+  def _init_layer_number_outline_ij_pair(self, layer_class: np.ndarray, file_name: str = 'layer_area.png'):
     """
     レイヤーの外形線を保存する
 
@@ -435,7 +439,7 @@ class RoofLayerInfo:
       file_name (str): 記録するファイル名
     """
 
-    self._layer_number_layer_outline_polygons_list_pair: dict[int, list[list[tuple[int, int]]]] = {}
+    self._layer_number_layer_area_polygon_ijs_list_pair: dict[int, list[list[tuple[int, int]]]] = {}
 
     height, width = layer_class.shape
 
@@ -457,8 +461,8 @@ class RoofLayerInfo:
     layer_numbers = list(layer_number_point_ijs_pair.keys())
     layer_numbers.sort()
 
-    # 前回のポリゴンリスト
-    last_merged_polygons: list[list[tuple[int, int]]] = []
+    # 前回までマージしたのポリゴンリスト
+    last_merged_polygon_ijs: list[list[tuple[int, int]]] = []
     for layer_number in layer_numbers:
       if layer_number == -1:
         continue
@@ -476,63 +480,63 @@ class RoofLayerInfo:
       contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
       # 輪郭を単純化
-      simplified_polygons: list[list[tuple[int, int]]] = []
+      simplified_polygon_ijs: list[list[tuple[int, int]]] = []
       epsilon_factor = 0.01  # 輪郭の単純化度合いの調整 (この値を調整するとポリゴンの単純化が変わる)
       for contour in contours:
         epsilon = epsilon_factor * cv2.arcLength(contour, True)  # 輪郭の長さに基づいてepsilonを計算
         approx = cv2.approxPolyDP(contour, epsilon, True)  # 輪郭を単純化
-        merged_outline_polygon = [(point[0][1], point[0][0]) for point in approx]
+        merged_outline_polygon_ijs = [(point[0][1], point[0][0]) for point in approx]
 
         # 頂点が二つ以下の場合はポリゴンではない
-        if len(merged_outline_polygon) >= 3:
-          if Polygon(merged_outline_polygon).is_valid:
-            simplified_polygons.append(merged_outline_polygon)
+        if len(merged_outline_polygon_ijs) >= 3:
+          if Polygon(merged_outline_polygon_ijs).is_valid:
+            simplified_polygon_ijs.append(merged_outline_polygon_ijs)
 
-      # 今回までマージしたポリゴン
-      current_merged_polygons: list[list[tuple[int, int]]] = []
-      merged_polygons: list[list[tuple[int, int]]] = simplified_polygons
-      merged_polygons.extend(last_merged_polygons)
-      merged_polygons_union = unary_union([Polygon(p) for p in merged_polygons])
-      if not merged_polygons_union.is_empty:
-        if isinstance(merged_polygons_union, MultiPolygon):
-          for poly in merged_polygons_union:
-            polygon = [coord for coord in poly.exterior.coords[:-1]]
-            current_merged_polygons.append(polygon)
-        elif isinstance(merged_polygons_union, Polygon):
-          polygon = [coord for coord in merged_polygons_union.exterior.coords[:-1]]
-          current_merged_polygons.append(polygon)
+      # 今回までマージしたポリゴンリスト
+      current_merged_polygon_ijs: list[list[tuple[int, int]]] = []
+      merged_polygon_ijs: list[list[tuple[int, int]]] = simplified_polygon_ijs
+      merged_polygon_ijs.extend(last_merged_polygon_ijs)
+      merged_polygon_ijs_union = unary_union([Polygon(p) for p in merged_polygon_ijs])
+      if not merged_polygon_ijs_union.is_empty:
+        if isinstance(merged_polygon_ijs_union, MultiPolygon):
+          for poly in merged_polygon_ijs_union.geoms:
+            polygon_ijs = [coord for coord in poly.exterior.coords[:-1]]
+            current_merged_polygon_ijs.append(polygon_ijs)
+        elif isinstance(merged_polygon_ijs_union, Polygon):
+          polygon_ijs = [coord for coord in merged_polygon_ijs_union.exterior.coords[:-1]]
+          current_merged_polygon_ijs.append(polygon_ijs)
 
-      last_merged_polygons_union = unary_union([Polygon(p) for p in last_merged_polygons])
-      current_merged_polygons_union = unary_union([Polygon(p) for p in current_merged_polygons])
+      last_merged_polygon_ijs_union = unary_union([Polygon(p) for p in last_merged_polygon_ijs])
+      current_merged_polygon_ijs_union = unary_union([Polygon(p) for p in current_merged_polygon_ijs])
 
-      # # 現在ポリゴン = 今回までマージしたポリゴン - 前回までマージしたのポリゴンリスト
-      difference = current_merged_polygons_union.difference(last_merged_polygons_union)
-      current_polygons = []
+      # layer_numberのポリゴンリスト = 今回までマージしたポリゴンリスト - 前回までマージしたのポリゴンリスト
+      difference = current_merged_polygon_ijs_union.difference(last_merged_polygon_ijs_union)
+      current_polygon_ijs = []
       if not difference.is_empty:
         if isinstance(difference, MultiPolygon):
-          for poly in difference:
-            polygon = [coord for coord in poly.exterior.coords[:-1]]
-            current_polygons.append(polygon)
+          for poly in difference.geoms:
+            polygon_ijs = [coord for coord in poly.exterior.coords[:-1]]
+            current_polygon_ijs.append(polygon_ijs)
         elif isinstance(difference, Polygon):
-          polygon = [coord for coord in difference.exterior.coords[:-1]]
-          current_polygons.append(polygon)
+          polygon_ijs = [coord for coord in difference.exterior.coords[:-1]]
+          current_polygon_ijs.append(polygon_ijs)
 
-      self._layer_number_layer_outline_polygons_list_pair[layer_number] = current_polygons
+      self._layer_number_layer_area_polygon_ijs_list_pair[layer_number] = current_polygon_ijs
 
       # 前回までマージしたのポリゴンリスト
-      last_merged_polygons = current_merged_polygons
+      last_merged_polygon_ijs = current_merged_polygon_ijs
 
       # 輪郭線を描画 (塗りつぶさない)
       if self._debug_mode:
         outline_part_image_rgb = np.full((height, width, 3), 255, dtype=np.uint8)
 
-        polygons_np = [np.array(polygon, np.int32)[:, ::-1].reshape((-1, 1, 2)) for polygon in current_polygons]
-        if len(polygons_np) > 0:
-          cv2.fillPoly(outline_all_image_rgb, polygons_np, color=rgb_color)
-          cv2.polylines(outline_part_image_rgb, polygons_np, isClosed=True, color=rgb_color, thickness=1)
+        polygon_np = [np.array(polygon, np.int32)[:, ::-1].reshape((-1, 1, 2)) for polygon in current_polygon_ijs]
+        if len(polygon_np) > 0:
+          cv2.fillPoly(outline_all_image_rgb, polygon_np, color=rgb_color)
+          cv2.polylines(outline_part_image_rgb, polygon_np, isClosed=True, color=rgb_color, thickness=1)
 
         outline_part_image_rgb = cv2.cvtColor(outline_part_image_rgb, cv2.COLOR_BGR2RGB)
-        outline_part_image_path = os.path.join(self._debug_dir, f"layer_outline_{layer_number}.png")
+        outline_part_image_path = os.path.join(self._debug_dir, f"layer_area_{layer_number}.png")
         cv2.imwrite(outline_part_image_path, outline_part_image_rgb)
 
     if self._debug_mode:

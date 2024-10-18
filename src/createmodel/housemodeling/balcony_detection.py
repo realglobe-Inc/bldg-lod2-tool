@@ -63,7 +63,7 @@ class BalconyDetection:
 
   def infer(
       self,
-      rgb_image: npt.NDArray[np.uint8],
+      dsm_grid_rgbs: npt.NDArray[np.uint8],
       depth_image: npt.NDArray[np.uint8],
       image_points: list[Point],
       polygons: list[list[int]],
@@ -72,7 +72,7 @@ class BalconyDetection:
     """バルコニー領域の推論を行う
 
     Args:
-        rgb_image(NDArray[np.uint8]): (image_size, image_size, 3)のRGB画像データ
+        dsm_grid_rgbs(NDArray[np.uint8]): (image_size, image_size, 3)のRGB画像データ
         depth_image(NDArray[np.uint8]): (image_size, image_size)の高さのグレースケール画像データ
         image_points(list[Point]): polygonsの各頂点の位置
         polygons(list[list[int]]): 屋根面の一覧(各要素はimage_pointsのindexを接続順に並べたリスト)
@@ -85,7 +85,7 @@ class BalconyDetection:
     self._model.eval()
 
     X = np.concatenate([
-        rgb_image[:, :, ::-1],  # RGB -> BGR
+        dsm_grid_rgbs[:, :, ::-1],  # RGB -> BGR
         depth_image[:, :, np.newaxis]
     ], axis=2).astype(np.float32)
     X = X.transpose(2, 0, 1) / 255.

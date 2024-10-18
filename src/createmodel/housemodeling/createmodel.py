@@ -5,7 +5,7 @@ from shapely.geometry import Polygon
 import numpy as np
 
 
-from .roof_polygon_info import RoofPolygonInfo
+from .extra_roof_line import ExtraRoofLine
 from .house_model import HouseModel
 from .coordinates_converter import CoordConverterForCartesianAndImagePos
 from .model_surface_creation.extract_roof_surface import extract_roof_surface
@@ -67,14 +67,14 @@ class CreateHouseModel:
     # 作成に使用するためのデータを作成
     preprocess = Preprocess(grid_size=grid_size, image_size=self._image_size, expand_rate=expand_rate, building_id=building_id)
     result_preprocess = preprocess.preprocess(self._cloud, min_ground_height, shape, debug_mode)
-    self._rgb_image, self._depth_image, self._roof_layer_info = result_preprocess
+    self._dsm_grid_rgbs, self._depth_image, self._roof_layer_info = result_preprocess
 
     self._coord_converter = self._get_coord_converter()
 
-    result_roof_polygons = self._get_roof_polygons(self._rgb_image)
+    result_roof_polygons = self._get_roof_polygons(self._dsm_grid_rgbs)
     self._optimized_roof_points, self._outer_polygon, self._inner_polygons = result_roof_polygons
 
-    RoofPolygonInfo(self._optimized_roof_points, self._inner_polygons, self._roof_layer_info, debug_mode)
+    ExtraRoofLine(self._optimized_roof_points, self._inner_polygons, self._roof_layer_info, debug_mode)
 
     self._balcony_flags = self._get_balcony_flags(self._optimized_roof_points, self._inner_polygons)
 
@@ -107,11 +107,11 @@ class CreateHouseModel:
 
   def _get_roof_polygons(
       self,
-      rgb_image,
+      dsm_grid_rgbs,
   ):
     # 屋根線検出
     roof_edge_detection = RoofEdgeDetection(self._roof_edge_detection_checkpoint_path, self._use_gpu)
-    roof_vertice_ijs, roof_edges = roof_edge_detection.infer(rgb_image)
+    roof_vertice_ijs, roof_edges = roof_edge_detection.infer(dsm_grid_rgbs)
     result_edges: list[tuple[int, int]] = []
 
     # 画像座標から平面直角座標への変換
@@ -140,7 +140,7 @@ class CreateHouseModel:
     # バルコニーセグメンテーション
     balcony_detection = BalconyDetection(self._balcony_segmentation_checkpoint_path, self._use_gpu)
     balcony_flags = balcony_detection.infer(
-        rgb_image=self._rgb_image,
+        dsm_grid_rgbs=self._dsm_grid_rgbs,
         depth_image=self._depth_image,
         image_points=image_points,
         polygons=inner_polygons,

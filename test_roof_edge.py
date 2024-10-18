@@ -8,12 +8,12 @@ import cv2
 from src.createmodel.housemodeling.roof_edge_detection import RoofEdgeDetection
 
 
-def draw_edges_on_image(rgb_image, corners, edges):
+def draw_edges_on_image(dsm_grid_rgbs, corners, edges):
   """
   画像に頂点を線でつなぐ。
 
   Args:
-    rgb_image (np.array): RGB画像データ
+    dsm_grid_rgbs (np.array): RGB画像データ
     corners (np.array): 頂点の位置のリスト (num of corners, 2)
     edges (np.array): 頂点の番号の組のリスト (num of edges, 2)
 
@@ -22,7 +22,7 @@ def draw_edges_on_image(rgb_image, corners, edges):
   """
 
   # RGB画像データをBGRに変換（OpenCVはBGRを使用）
-  image = cv2.cvtColor(rgb_image, cv2.COLOR_RGB2BGR)
+  image = cv2.cvtColor(dsm_grid_rgbs, cv2.COLOR_RGB2BGR)
 
   # edges に従って線を描画
   for edge in edges:
@@ -56,20 +56,20 @@ def main():
     image = image.convert('RGB')
 
   _image_size = 256
-  square_rgb_image = Image.new('RGB', (_image_size, _image_size), "white")
+  square_dsm_grid_rgbs = Image.new('RGB', (_image_size, _image_size), "white")
   width, height = image.size
   top = (_image_size - height) // 2
   left = (_image_size - width) // 2
   if width <= _image_size and height <= _image_size:
-    square_rgb_image.paste(image, (left, top))
+    square_dsm_grid_rgbs.paste(image, (left, top))
   else:
     image = image.resize((_image_size, _image_size), Image.ANTIALIAS)
-    square_rgb_image = image
+    square_dsm_grid_rgbs = image
 
-  rgb_image = np.array(square_rgb_image)
-  corners, edges = roof_edge_detection.infer(rgb_image)
+  dsm_grid_rgbs = np.array(square_dsm_grid_rgbs)
+  corners, edges = roof_edge_detection.infer(dsm_grid_rgbs)
 
-  image_with_edges = draw_edges_on_image(rgb_image, corners, edges)
+  image_with_edges = draw_edges_on_image(dsm_grid_rgbs, corners, edges)
 
   input_image_basename = os.path.basename(input_image_path)
   input_image_basename_without_ext, _ = os.path.splitext(input_image_basename)

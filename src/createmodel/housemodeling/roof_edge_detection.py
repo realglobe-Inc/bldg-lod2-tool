@@ -42,16 +42,16 @@ class RoofEdgeDetection:
       msg = '{}.{}, {}'.format(class_name, func_name, e)
       raise RoofEdgeDetectionCheckpointReadException(msg)
 
-  def infer(self, rgb_image: npt.NDArray[np.uint8]) -> tuple[npt.NDArray, npt.NDArray]:
+  def infer(self, dsm_grid_rgbs: npt.NDArray[np.uint8]) -> tuple[npt.NDArray, npt.NDArray]:
     """屋根線の検出を行う
 
     Args:
-        rgb_image(NDArray[np.uint8]): (image_size, image_size, 3)のRGB画像データ
+        dsm_grid_rgbs(NDArray[np.uint8]): (image_size, image_size, 3)のRGB画像データ
 
     Returns:
         NDArray: 屋根面の頂点の位置 (num of roof_vertice_ijs, 2)
         NDArray: 屋根線(頂点の番号の組)のリスト (num of edges, 2)
     """
-    roof_vertice_ijs, edges = self._model.infer(rgb_image)
+    roof_vertice_ijs, edges = self._model.infer(dsm_grid_rgbs)
 
     return roof_vertice_ijs, edges

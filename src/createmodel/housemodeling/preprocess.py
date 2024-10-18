@@ -92,8 +92,8 @@ class Preprocess:
     nn.fit(pc_xyz[:, 0:2])
     inds = nn.kneighbors(xy, return_distance=False)[:, 0]
 
-    layer_points_xyz = pc_xyz[inds]
-    rgb_image = pc_rgb[inds] / 256
+    dsm_grid_xyzs = pc_xyz[inds]
+    dsm_grid_rgbs = pc_rgb[inds] / 256
 
     lower, upper = ground_height - 5, ground_height + 25
     depth_image = (np.clip(pc_xyz[:, 2][inds], lower, upper) - lower) / (upper - lower) * 255
@@ -101,21 +101,21 @@ class Preprocess:
     for i, xy_ in enumerate(xy):
       p = Point(xy_[0], xy_[1])
       if not footprint.contains(p):
-        layer_points_xyz[i] = 0
-        rgb_image[i] = 255
+        dsm_grid_xyzs[i] = 0
+        dsm_grid_rgbs[i] = 255
         depth_image[i] = 255
 
-    layer_points_xyz = layer_points_xyz.reshape(height, width, 3).astype(np.float_)
-    rgb_image = rgb_image.reshape(height, width, 3).astype(np.uint8)
+    dsm_grid_xyzs = dsm_grid_xyzs.reshape(height, width, 3).astype(np.float_)
+    dsm_grid_rgbs = dsm_grid_rgbs.reshape(height, width, 3).astype(np.uint8)
     depth_image = depth_image.reshape(height, width).astype(np.uint8)
 
     debug_dir = os.path.join('debug', self._building_id)
-    roof_layer_info = RoofLayerInfo(layer_points_xyz, rgb_image, debug_dir, debug_mode)
+    roof_layer_info = RoofLayerInfo(dsm_grid_xyzs, dsm_grid_rgbs, debug_dir, debug_mode)
 
     # 画像を拡大
     if self._expand_rate != 1:
       expanded_size = (round(width * self._expand_rate), round(height * self._expand_rate))
-      rgb_image = np.array(Image.fromarray(rgb_image).resize(expanded_size), dtype=np.uint8)
+      dsm_grid_rgbs = np.array(Image.fromarray(dsm_grid_rgbs).resize(expanded_size), dtype=np.uint8)
       depth_image = np.array(
           Image.fromarray(depth_image, 'L').resize(expanded_size), dtype=np.uint8
       )
@@ -123,13 +123,13 @@ class Preprocess:
       width, height = expanded_size
 
     # モデル入力用の正方形画像に変換(余白は白で埋める)
-    square_rgb_image = np.full((self._image_size, self._image_size, 3), 255, dtype=np.uint8)
+    square_dsm_grid_rgbs = np.full((self._image_size, self._image_size, 3), 255, dtype=np.uint8)
     square_depth_image = np.full((self._image_size, self._image_size), 255, dtype=np.uint8)
 
     top = (self._image_size - height) // 2
     left = (self._image_size - width) // 2
 
-    square_rgb_image[top:top + height, left:left + width] = rgb_image
+    square_dsm_grid_rgbs[top:top + height, left:left + width] = dsm_grid_rgbs
     square_depth_image[top:top + height, left:left + width] = depth_image
 
-    return square_rgb_image, square_depth_image, roof_layer_info
+    return square_dsm_grid_rgbs, square_depth_image, roof_layer_info
