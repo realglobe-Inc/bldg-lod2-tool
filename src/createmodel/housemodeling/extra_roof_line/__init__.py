@@ -11,7 +11,7 @@ class ExtraRoofLine:
   def inner_polygon_ijs_list_after(self):
     """
     Returns:
-      list[list[tuple[int, int]]]: 分離されたポリゴンリスト
+      list[list[tuple[float, float]]]: 分離されたポリゴンリスト
     """
 
     return self._inner_polygon_ijs_list_after
@@ -33,7 +33,7 @@ class ExtraRoofLine:
       debug_mode: bool = False
   ):
     """
-    屋根ポリゴン情報を管理するクラス
+    HEAT が出せてない屋根線を追加
 
     Args:
       cartesian_points (list[Point]): 各頂点の3D座標リスト（点群データ）
@@ -67,7 +67,7 @@ class ExtraRoofLine:
           'roof_line_with_layer_class_step_3_filled_origin_polygons.png',
       )
 
-    self._inner_polygon_ijs_list_after: list[list[tuple[int, int]]] = []
+    self._inner_polygon_ijs_list_after: list[list[tuple[float, float]]] = []
     self._has_splited_polygon = False
 
     for inner_polygon in self._inner_polygons:
@@ -90,12 +90,29 @@ class ExtraRoofLine:
         self._inner_polygon_ijs_list_after.append(inner_polygon_ijs)
 
     if debug_mode:
-      self._save_roof_line_with_layer_class_images(
-          self._inner_polygon_ijs_list_after,
-          'roof_line_with_layer_class_step_5_splited_polygons.png',
-          'roof_line_with_layer_class_step_6_splited_roof_layers.png',
-          'roof_line_with_layer_class_step_7_filled_splited_polygons.png',
-      )
+      if not self._has_too_many_noise():
+        self._save_roof_line_with_layer_class_images(
+            self._inner_polygon_ijs_list_after,
+            'roof_line_with_layer_class_step_5_splited_polygons.png',
+            'roof_line_with_layer_class_step_6_splited_roof_layers.png',
+            'roof_line_with_layer_class_step_7_filled_splited_polygons.png',
+        )
+
+  def _has_too_many_noise(self):
+    has_too_many_noise = False
+    for polygon_ijs in self._inner_polygon_ijs_list_after:
+      layer_number_point_ijs_pair = PolygonDevision.get_layer_number_grid_ijs_pair(self._roof_layer_info, polygon_ijs)
+      noise_point_ijs = layer_number_point_ijs_pair.get(RoofLayerInfo.NOISE_POINT) or []
+      point_ijs_count_noise = len(noise_point_ijs)
+      point_ijs_count_all = 0
+      for point_ijs in layer_number_point_ijs_pair.values():
+        point_ijs_count_all += len(point_ijs)
+
+      if point_ijs_count_all >= 25 and (point_ijs_count_noise / point_ijs_count_all) > 0.4:
+        print(point_ijs_count_all, point_ijs_count_noise)
+        has_too_many_noise = True
+
+    return has_too_many_noise
 
   def _get_image_vertices(self, roof_layer_info: RoofLayerInfo, cartesian_points: list[Point]):
     """

@@ -136,7 +136,7 @@ class PolygonDevision:
 
     # 分割されたポリゴンリスト = 共通部ポリゴンリスト + DSMノイズ領域のポリゴンリスト
     splited_polygon_ijs_list_tmp = [*intersection_polygon_ijs_list, *noise_area_polygon_ijs_list]
-    fixed_polygon_ijs_list_tmp = self._fix_polygon_vertices(splited_polygon_ijs_list_tmp)
+    fixed_polygon_ijs_list_tmp = splited_polygon_ijs_list_tmp
 
     # 小さいポリゴンを大きいポリゴンと合併
     splited_polygon_ijs_list = self._merge_small_polygon_into_large_polygon(fixed_polygon_ijs_list_tmp)
@@ -410,6 +410,7 @@ class PolygonDevision:
     origin_poly = Polygon(origin_polygon_ijs)
     diff_area = merged_area.difference(origin_poly)
     if diff_area.area > 0.0001:
+      breakpoint()
       raise CreateModelException(CreateModelMessage.ERR_POLYGON_DIVISION_FAIL)
 
     # 結果の整合性チェック2 : 分割前のポリゴンの中に入っているか

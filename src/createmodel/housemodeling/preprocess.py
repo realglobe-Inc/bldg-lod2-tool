@@ -101,7 +101,6 @@ class Preprocess:
     for i, xy_ in enumerate(xy):
       p = Point(xy_[0], xy_[1])
       if not footprint.contains(p):
-        dsm_grid_xyzs[i] = 0
         dsm_grid_rgbs[i] = 255
         depth_image[i] = 255
 

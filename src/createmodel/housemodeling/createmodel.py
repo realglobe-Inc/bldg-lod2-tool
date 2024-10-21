@@ -3,7 +3,7 @@ from typing import Optional
 
 from shapely.geometry import Polygon
 import numpy as np
-
+from scipy.interpolate import RegularGridInterpolator
 
 from .extra_roof_line import ExtraRoofLine
 from .house_model import HouseModel
@@ -70,18 +70,60 @@ class CreateHouseModel:
     self._dsm_grid_rgbs, self._depth_image, self._roof_layer_info = result_preprocess
 
     self._coord_converter = self._get_coord_converter()
+    roof_edge_detection = RoofEdgeDetection(self._roof_edge_detection_checkpoint_path, self._use_gpu)
+    roof_vertice_ijs_tmp, roof_edges_tmp = roof_edge_detection.infer(self._dsm_grid_rgbs)
+    roof_cartesian_points_tmp, outer_polygon_tmp, inner_polygons_tmp = self._get_roof_polygons(
+        roof_vertice_ijs_tmp, roof_edges_tmp
+    )
 
-    result_roof_polygons = self._get_roof_polygons(self._dsm_grid_rgbs)
-    self._optimized_roof_points, self._outer_polygon, self._inner_polygons = result_roof_polygons
+    extra_roof_line = ExtraRoofLine(
+        roof_cartesian_points_tmp,
+        inner_polygons_tmp,
+        self._roof_layer_info,
+        debug_mode,
+    )
+    if extra_roof_line.has_splited_polygon:
+      roof_vertice_ijs = list(set([
+          polygon_ij
+          for polygon_ijs in extra_roof_line.inner_polygon_ijs_list_after
+          for polygon_ij in polygon_ijs
+      ]))
+      vertex_point_id_pair = {roof_vertice_ij: index for index, roof_vertice_ij in enumerate(roof_vertice_ijs)}
 
-    ExtraRoofLine(self._optimized_roof_points, self._inner_polygons, self._roof_layer_info, debug_mode)
+      polygon_edges: set[tuple[int, int]] = set()
+      for polygon_ijs in extra_roof_line.inner_polygon_ijs_list_after:
+        poly = Polygon(polygon_ijs)
+        coords = list(poly.exterior.coords)  # ポリゴンの外周座標リスト
+        for i in range(len(coords) - 1):  # -1 は最後のエッジを無視するため
+          point_id_a = vertex_point_id_pair[coords[i]]
+          point_id_b = vertex_point_id_pair[coords[i + 1]]
+          sorted_edge: tuple[int, int] = tuple(sorted([point_id_a, point_id_b]))  # 重複を防ぐため、sort
+          polygon_edges.add(sorted_edge)
 
-    self._balcony_flags = self._get_balcony_flags(self._optimized_roof_points, self._inner_polygons)
+      roof_edges = list(polygon_edges)
+
+      result_edges: list[tuple[int, int]] = []
+      tmp_roof_vertice_xys = np.array([self._ij_to_xy(i, j) for i, j in roof_vertice_ijs])
+
+      # LoD2モデルデータの作成
+      roof_cartesian_points, inner_edge, outer_edge = optimize_roof_edge(
+          self._shape,
+          tmp_roof_vertice_xys,
+          roof_edges,
+      )
+      result_edges = inner_edge + outer_edge
+      outer_polygon, inner_polygons = extract_roof_surface(roof_cartesian_points, result_edges)
+    else:
+      roof_cartesian_points = roof_cartesian_points_tmp
+      outer_polygon = outer_polygon_tmp
+      inner_polygons = inner_polygons_tmp
+
+    self._balcony_flags = self._get_balcony_flags(roof_cartesian_points, inner_polygons)
 
     self._create_model(
-        roof_points=self._optimized_roof_points,
-        inner_polygons=self._inner_polygons,
-        outer_polygon=self._outer_polygon,
+        roof_points=roof_cartesian_points,
+        inner_polygons=inner_polygons,
+        outer_polygon=outer_polygon,
         balcony_flags=self._balcony_flags,
     )
 
@@ -107,11 +149,9 @@ class CreateHouseModel:
 
   def _get_roof_polygons(
       self,
-      dsm_grid_rgbs,
+      roof_vertice_ijs: list[tuple[float, float]],
+      roof_edges: list[tuple[int, int]],
   ):
-    # 屋根線検出
-    roof_edge_detection = RoofEdgeDetection(self._roof_edge_detection_checkpoint_path, self._use_gpu)
-    roof_vertice_ijs, roof_edges = roof_edge_detection.infer(dsm_grid_rgbs)
     result_edges: list[tuple[int, int]] = []
 
     # 画像座標から平面直角座標への変換
@@ -131,7 +171,7 @@ class CreateHouseModel:
       roof_points: list[Point],
       inner_polygons: list[int],
   ):
-      # 平面直角座標から画像座標への変換
+    # 平面直角座標から画像座標への変換
     image_points = [
         Point(*self._coord_converter.cartesian_point_to_image_point(cartesian_point.x, cartesian_point.y))
         for cartesian_point in roof_points
@@ -175,3 +215,27 @@ class CreateHouseModel:
     file_name = f'{self._building_id}.obj'
     obj_path = os.path.join(self._output_folder_path, file_name)
     model.output_obj(path=obj_path)
+
+  def _ij_to_xy(self, i: float, j: float):
+    """
+    画像座標 (i, j) からDSM点群の (x, y) へ変換
+
+    Args:
+      x (float): 選択した任意の点の x
+      y (float): 選択した任意の点の y
+    """
+    # i と j の範囲を定義
+    i_values = np.arange(self._roof_layer_info.layer_grid_xyzs.shape[0])  # i の範囲
+    j_values = np.arange(self._roof_layer_info.layer_grid_xyzs.shape[1])  # j の範囲
+
+    # 各次元の座標 (x, y) に対して補間関数を作成
+    x_coords = self._roof_layer_info.layer_grid_xyzs[:, :, 0]
+    y_coords = self._roof_layer_info.layer_grid_xyzs[:, :, 1]
+
+    # x, y それぞれに対して補間関数を作成
+    interp_x = RegularGridInterpolator((i_values, j_values), x_coords)
+    interp_y = RegularGridInterpolator((i_values, j_values), y_coords)
+    x = float(interp_x((i, j)))
+    y = float(interp_y((i, j)))
+
+    return x, y

@@ -42,6 +42,17 @@ class RoofLayerInfo:
     return self._dsm_grid_rgbs
 
   @property
+  def layer_grid_xyzs(self):
+    """
+    DSM点群のRGB画像(i,j)のxyz座標
+
+    Returns:
+      npt.NDArray[np.float_]: DSM点群のRGB画像(i,j)のxyz座標
+    """
+
+    return self._layer_grid_xyzs
+
+  @property
   def debug_dir(self):
     """
     デバッグ用ディレクトリー
