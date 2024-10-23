@@ -8,6 +8,8 @@
 ### [AWS EC2 Ubuntu 20.04 での環境構築のガイド](./docs/tutorials/setup-linux/README.md)
 ### [VSCode Remote 設定ガイド](./docs/tutorials/vscode-remote/README.md)
 
+## [デバッグモードの使い方](./docs/tutorials/debug-mode//README.md)
+
 ## 利用技術
 
 本ツールは、Python(バージョン3.9)のインストールが必要です。
