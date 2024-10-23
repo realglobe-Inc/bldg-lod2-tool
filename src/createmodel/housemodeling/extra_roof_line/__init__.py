@@ -90,13 +90,12 @@ class ExtraRoofLine:
         self._inner_polygon_ijs_list_after.append(inner_polygon_ijs)
 
     if debug_mode:
-      if not self._has_too_many_noise():
-        self._save_roof_line_with_layer_class_images(
-            self._inner_polygon_ijs_list_after,
-            'roof_line_with_layer_class_step_5_splited_polygons.png',
-            'roof_line_with_layer_class_step_6_splited_roof_layers.png',
-            'roof_line_with_layer_class_step_7_filled_splited_polygons.png',
-        )
+      self._save_roof_line_with_layer_class_images(
+          self._inner_polygon_ijs_list_after,
+          'roof_line_with_layer_class_step_5_splited_polygons.png',
+          'roof_line_with_layer_class_step_6_splited_roof_layers.png',
+          'roof_line_with_layer_class_step_7_filled_splited_polygons.png',
+      )
 
   def _has_too_many_noise(self):
     has_too_many_noise = False

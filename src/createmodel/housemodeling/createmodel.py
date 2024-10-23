@@ -67,11 +67,11 @@ class CreateHouseModel:
     # 作成に使用するためのデータを作成
     preprocess = Preprocess(grid_size=grid_size, image_size=self._image_size, expand_rate=expand_rate, building_id=building_id)
     result_preprocess = preprocess.preprocess(self._cloud, min_ground_height, shape, debug_mode)
-    self._dsm_grid_rgbs, self._depth_image, self._roof_layer_info = result_preprocess
+    self._square_dsm_grid_rgbs, self._depth_image, self._roof_layer_info = result_preprocess
 
     self._coord_converter = self._get_coord_converter()
     roof_edge_detection = RoofEdgeDetection(self._roof_edge_detection_checkpoint_path, self._use_gpu)
-    roof_vertice_ijs_tmp, roof_edges_tmp = roof_edge_detection.infer(self._dsm_grid_rgbs)
+    roof_vertice_ijs_tmp, roof_edges_tmp = roof_edge_detection.infer(self._square_dsm_grid_rgbs)
     roof_cartesian_points_tmp, outer_polygon_tmp, inner_polygons_tmp = self._get_roof_polygons(
         roof_vertice_ijs_tmp, roof_edges_tmp
     )
@@ -180,7 +180,7 @@ class CreateHouseModel:
     # バルコニーセグメンテーション
     balcony_detection = BalconyDetection(self._balcony_segmentation_checkpoint_path, self._use_gpu)
     balcony_flags = balcony_detection.infer(
-        dsm_grid_rgbs=self._dsm_grid_rgbs,
+        dsm_grid_rgbs=self._square_dsm_grid_rgbs,
         depth_image=self._depth_image,
         image_points=image_points,
         polygons=inner_polygons,
@@ -225,12 +225,12 @@ class CreateHouseModel:
       y (float): 選択した任意の点の y
     """
     # i と j の範囲を定義
-    i_values = np.arange(self._roof_layer_info.layer_grid_xyzs.shape[0])  # i の範囲
-    j_values = np.arange(self._roof_layer_info.layer_grid_xyzs.shape[1])  # j の範囲
+    i_values = np.arange(self._roof_layer_info.origin_dsm_grid_xyzs.shape[0])  # i の範囲
+    j_values = np.arange(self._roof_layer_info.origin_dsm_grid_xyzs.shape[1])  # j の範囲
 
     # 各次元の座標 (x, y) に対して補間関数を作成
-    x_coords = self._roof_layer_info.layer_grid_xyzs[:, :, 0]
-    y_coords = self._roof_layer_info.layer_grid_xyzs[:, :, 1]
+    x_coords = self._roof_layer_info.origin_dsm_grid_xyzs[:, :, 0]
+    y_coords = self._roof_layer_info.origin_dsm_grid_xyzs[:, :, 1]
 
     # x, y それぞれに対して補間関数を作成
     interp_x = RegularGridInterpolator((i_values, j_values), x_coords)

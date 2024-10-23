@@ -92,24 +92,33 @@ class Preprocess:
     nn.fit(pc_xyz[:, 0:2])
     inds = nn.kneighbors(xy, return_distance=False)[:, 0]
 
+    origin_dsm_grid_xyzs = pc_xyz[inds]
     dsm_grid_xyzs = pc_xyz[inds]
     dsm_grid_rgbs = pc_rgb[inds] / 256
 
     lower, upper = ground_height - 5, ground_height + 25
     depth_image = (np.clip(pc_xyz[:, 2][inds], lower, upper) - lower) / (upper - lower) * 255
 
-    for i, xy_ in enumerate(xy):
-      p = Point(xy_[0], xy_[1])
+    for i, (x, y) in enumerate(xy):
+      p = Point(x, y)
       if not footprint.contains(p):
+        dsm_grid_xyzs[i] = 0
         dsm_grid_rgbs[i] = 255
         depth_image[i] = 255
 
+    origin_dsm_grid_xyzs = origin_dsm_grid_xyzs.reshape(height, width, 3).astype(np.float_)
     dsm_grid_xyzs = dsm_grid_xyzs.reshape(height, width, 3).astype(np.float_)
     dsm_grid_rgbs = dsm_grid_rgbs.reshape(height, width, 3).astype(np.uint8)
     depth_image = depth_image.reshape(height, width).astype(np.uint8)
 
     debug_dir = os.path.join('debug', self._building_id)
-    roof_layer_info = RoofLayerInfo(dsm_grid_xyzs, dsm_grid_rgbs, debug_dir, debug_mode)
+    roof_layer_info = RoofLayerInfo(
+        origin_dsm_grid_xyzs=origin_dsm_grid_xyzs,
+        dsm_grid_xyzs=dsm_grid_xyzs,
+        dsm_grid_rgbs=dsm_grid_rgbs,
+        debug_dir=debug_dir,
+        debug_mode=debug_mode,
+    )
 
     # 画像を拡大
     if self._expand_rate != 1:

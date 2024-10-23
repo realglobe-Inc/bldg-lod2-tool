@@ -42,7 +42,7 @@ class RoofLayerInfo:
     return self._dsm_grid_rgbs
 
   @property
-  def layer_grid_xyzs(self):
+  def origin_dsm_grid_xyzs(self):
     """
     DSM点群のRGB画像(i,j)のxyz座標
 
@@ -50,7 +50,7 @@ class RoofLayerInfo:
       npt.NDArray[np.float_]: DSM点群のRGB画像(i,j)のxyz座標
     """
 
-    return self._layer_grid_xyzs
+    return self._origin_dsm_grid_xyzs
 
   @property
   def debug_dir(self):
@@ -107,7 +107,8 @@ class RoofLayerInfo:
 
   def __init__(
       self,
-      layer_grid_xyzs: npt.NDArray[np.float_],
+      origin_dsm_grid_xyzs: npt.NDArray[np.float_],
+      dsm_grid_xyzs: npt.NDArray[np.float_],
       dsm_grid_rgbs: npt.NDArray[np.int_],
       debug_dir: str,
       debug_mode: bool = False,
@@ -116,33 +117,34 @@ class RoofLayerInfo:
     屋根線をイメージとして保存（デバッグ用）
 
     Args:
-      layer_grid_xyzs: DSM点群のRGB画像(i,j)のxyz座標
+      origin_dsm_grid_xyzs (npt.NDArray[np.uint8]): DSM点群のRGB画像(i,j)のxyz座標
+      dsm_grid_xyzs (npt.NDArray[np.uint8]): DSM点群のRGB画像(i,j)のxyz座標
       dsm_grid_rgbs (npt.NDArray[np.uint8]): DSM点群のRGB画像
       debug_dir (str): 記録するファイル名
       debug_mode (bool): デバッグモード
     """
 
+    self._origin_dsm_grid_xyzs = origin_dsm_grid_xyzs.copy()
     self._dsm_grid_rgbs = dsm_grid_rgbs.copy()
-    self._layer_grid_xyzs = layer_grid_xyzs
+    self._dsm_grid_xyzs = dsm_grid_xyzs
     self._debug_mode = debug_mode
     self._debug_dir = debug_dir
-    self._height, self._width = layer_grid_xyzs.shape[:2]
+    self._height, self._width = dsm_grid_xyzs.shape[:2]
     self._layer_class = np.full((self._height, self._width), RoofLayerInfo.NO_POINT, dtype=np.int_)
     self._layer_class_length = 0
 
     self._color_palette = self.get_color_palette(RoofLayerInfo.RESERVED_COLOR.values())
-    self._wall_point_positions = self._get_wall_point_positions(self._layer_grid_xyzs)
-    self._xy_ij = self._get_xy_ij_pair(self._layer_grid_xyzs)
+    self._wall_point_positions = self._get_wall_point_positions(self._dsm_grid_xyzs)
+    self._xy_ij = self._get_xy_ij_pair(self._dsm_grid_xyzs)
     self._init_layer_class()
     self._detect_and_mark_noise()
-
+    self._init_layer_number_outline_ij_pair(self._layer_class)
     if self._debug_mode:
       Path(self._debug_dir).mkdir(parents=True, exist_ok=True)
 
       self._save_image_origin()
       self._save_image_wall_line(self.wall_point_positions)
       self.save_layer_image(self._layer_class)
-      self._init_layer_number_outline_ij_pair(self._layer_class)
 
   def find_nearest_xy(self, search_x: float, search_y: float):
     """
@@ -175,13 +177,13 @@ class RoofLayerInfo:
 
     return self._xy_ij[(x, y)]
 
-  def _get_wall_point_positions(self, layer_grid_xyzs: npt.NDArray[np.float_]):
+  def _get_wall_point_positions(self, dsm_grid_xyzs: npt.NDArray[np.float_]):
     """壁の点を設定する"""
 
-    height, width = layer_grid_xyzs.shape[:2]
+    height, width = dsm_grid_xyzs.shape[:2]
     wall_point_positions: list[tuple[float, float]] = []
-    for i, layer_grid_xyzs_j in enumerate(layer_grid_xyzs):
-      for j, (x, y, z1) in enumerate(layer_grid_xyzs_j):
+    for i, dsm_grid_xyzs_j in enumerate(dsm_grid_xyzs):
+      for j, (x, y, z1) in enumerate(dsm_grid_xyzs_j):
         if (x == 0 and y == 0 and z1 == 0):
           continue
 
@@ -189,19 +191,19 @@ class RoofLayerInfo:
         for di, dj in [(-1, 0), (1, 0), (0, -1), (0, 1)]:
           i2, j2 = i + di, j + dj
           if 0 <= i2 < height and 0 <= j2 < width:
-            z2s.append(layer_grid_xyzs[i2, j2, 2])
+            z2s.append(dsm_grid_xyzs[i2, j2, 2])
 
         if self._is_wall_index(z1, z2s):
           wall_point_positions.append((i, j))
 
     return wall_point_positions
 
-  def _get_xy_ij_pair(self, layer_grid_xyzs: npt.NDArray[np.float_]):
+  def _get_xy_ij_pair(self, dsm_grid_xyzs: npt.NDArray[np.float_]):
     """DSM点群の (x, y) の座標をDSM点群の画像座標である (i, j) へ変換できるようにインデクスを作る"""
 
     xy_ij: dict[tuple[float, float], tuple[int, int]] = {}
-    for i, layer_grid_xyzs_j in enumerate(layer_grid_xyzs):
-      for j, (x, y, z1) in enumerate(layer_grid_xyzs_j):
+    for i, dsm_grid_xyzs_j in enumerate(dsm_grid_xyzs):
+      for j, (x, y, z1) in enumerate(dsm_grid_xyzs_j):
         xy_ij[(x, y)] = (i, j)
 
     return xy_ij
@@ -235,7 +237,7 @@ class RoofLayerInfo:
       i, j = queue.popleft()
 
       # 現在の点の z 座標
-      current_z = self._layer_grid_xyzs[i, j, 2]
+      current_z = self._dsm_grid_xyzs[i, j, 2]
 
       # 前後左右の点を探索
       for di, dj in directions:
@@ -244,7 +246,7 @@ class RoofLayerInfo:
         # 境界チェック
         if 0 <= i2 < self._height and 0 <= j2 < self._width:
           if self._layer_class[i2, j2] == RoofLayerInfo.NO_POINT:
-            neighbor_z = self._layer_grid_xyzs[i2, j2, 2]
+            neighbor_z = self._dsm_grid_xyzs[i2, j2, 2]
 
             # z 座標の差が RoofLayerInfo.WALL_HEIGHT_THRESHOLD 以下なら、同じレイヤーと見なす
             if abs(current_z - neighbor_z) <= RoofLayerInfo.WALL_HEIGHT_THRESHOLD:
