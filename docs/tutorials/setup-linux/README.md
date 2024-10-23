@@ -127,11 +127,14 @@ unzip ~/Auto-Create-bldg-lod2-tool-tutorial.zip -d ~/Auto-Create-bldg-lod2-tool-
     "NonPlaneThickness": 0.05,
     "NonPlaneAngle": 15
   },
+  "DebugMode": true,
   "TargetCoordAreas" : [
     [[35, 139, 6668], [36, 140, 6668]],
     [[35, 139, 6668], [-12516, -53774, 6677]],
     [[-12516, -53774, 6677], [-12516, -53774, 6677]]
-  ]
+  ],
+  "TextureOutputWidthMax": 4096,
+  "TextureOutputHeightMax": 4096
 }
 ```
 
@@ -161,9 +164,12 @@ python3 AutoCreateLod2.py ~/AutoCreateLod2_tutorial/LOD2Creator_tutorial/param.j
 
 #### 選択パラメーター
 | No |	キー名 |	値形式 | 説明 |
-| -- | -- | -- | -- | 
-|1| TargetCoordAreas | `Array<Array<Array<number>>>` | 緯度経度の領域を指定して建築物の対象を絞ります。
-|2| TargetBuildingIds | `Array<string>` | 建築IDを指定して建築物の対象を絞ります。入力しない場合、全ての建築物を対象とします
+| -- | -- | -- | -- |
+|1| DebugMode | `Boolean` | デバッグモード : キャッシュ化して実行速度改善、中間処理段階の結果をイメージとして保存して問題を追跡
+|2| TargetCoordAreas | `Array<Array<Array<number>>>` | 緯度経度の領域を指定して建築物の対象を絞ります。<br /> 緯度経度の領域 : [[x1, y1, epsg_code1], [x2, y2, epsg_code2]]<br />ex)<br />[[-13985, -51597, 6677], [-13963, -51576, 6677]]
+|3| TargetBuildingIds | `Array<string>` | 建築IDを指定して建築物の対象を絞ります。入力しない場合、全ての建築物を対象とします
+|4| TextureOutputWidthMax | `number` | テクスチャー幅サイズ最大値制限
+|5| TextureOutputHeightMax | `number` | テクスチャー縦サイズ最大値制限
 
 
 ### LOD2建築物モデル自動作成開始
