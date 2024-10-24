@@ -136,7 +136,8 @@ class PolygonDevision:
 
     # 分割されたポリゴンリスト = 共通部ポリゴンリスト + DSMノイズ領域のポリゴンリスト
     splited_polygon_ijs_list_tmp = [*intersection_polygon_ijs_list, *noise_area_polygon_ijs_list]
-    fixed_polygon_ijs_list_tmp = self._fix_polygon_vertices(splited_polygon_ijs_list_tmp)
+    fixed_polygon_ijs_list_tmp = splited_polygon_ijs_list_tmp
+    # fixed_polygon_ijs_list_tmp = self._fix_polygon_vertices(splited_polygon_ijs_list_tmp)
 
     # 小さいポリゴンを大きいポリゴンと合併
     splited_polygon_ijs_list = self._merge_small_polygon_into_large_polygon(fixed_polygon_ijs_list_tmp)

@@ -65,6 +65,7 @@ def auto_triangulate(vertices_3d: list[list[float]]):
   scaled_vertices_2d = project_to_best_plane(vertices_3d)
   delaunay = Delaunay(scaled_vertices_2d)  # Delaunay 三角形分割を使用
   triangles: list[list[int]] = delaunay.simplices.tolist()
+  breakpoint()
 
   # 結果としての三角形リスト
   filtered_triangles: list[list[int]] = []

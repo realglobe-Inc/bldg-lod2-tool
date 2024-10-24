@@ -1,6 +1,8 @@
 import numpy as np
 from shapely.geometry import Polygon
 
+from ....createmodel.createmodelexception import CreateModelException
+from ....createmodel.message import CreateModelMessage
 from .polygon_devision import PolygonDevision
 from ..model_surface_creation.utils.geometry import Point
 from ..roof_layer_info import RoofLayerInfo
@@ -96,6 +98,10 @@ class ExtraRoofLine:
           'roof_line_with_layer_class_step_6_splited_roof_layers.png',
           'roof_line_with_layer_class_step_7_filled_splited_polygons.png',
       )
+
+    for polygon_ijs in self._inner_polygon_ijs_list_after:
+      if not Polygon(polygon_ijs).is_valid:
+        raise CreateModelException(CreateModelMessage.ERR_POLYGON_DIVISION_FAIL)
 
   def _has_too_many_noise(self):
     has_too_many_noise = False
