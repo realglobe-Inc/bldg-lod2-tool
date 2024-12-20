@@ -21,15 +21,15 @@
 
 
 ## 処理手順
-| 順番 | 相対パス | 説明 | 内部処理の詳細 |
-|-|-|-|-|
-| 1 | `./` | LOD2建築物自動作成ツール | [実行フロー](./docs/tutorials/tools/bldg-lod2-tool/README.md) |
-| - | ~~`./tools/SuperResolution/RoofSurface/`~~ | ~~屋根面視認性向上ツール~~ | |
-| 2 | `./tools/SuperResolution/WallSurface/` | 壁面視認性向上ツール | （要ドキュメント作成） |
-| 3 | `./tools/DeblurGANv2` | テクスチャ鮮明化ツール | [実行フロー](./docs/tutorials/tools/DeblurGANv2/README.md) |
-| 4 | `./tools/UnsharpMask/` | テクスチャシャープ化ツール | [実行フロー](./docs/tutorials/tools/UnsharpMask/README.md) |
-| 5 | `./tools/Real-ESRGAN/` | テクスチャ解像度向上ツール | [実行フロー](./docs/tutorials/tools/Real-ESRGAN/README.md) |
-| 6 | `./tools/Atlas_Prot/` | テクスチャアトラス化ツール | （要ドキュメント作成） |
+| 順番 | 相対パス | 説明 | 内部処理の詳細 | 備考 |
+|-|-|-|-|-|
+| 1 | `./` | LOD2建築物自動作成ツール | [実行フロー](./docs/tutorials/tools/bldg-lod2-tool/README.md) | |
+| - | ~~`./tools/SuperResolution/RoofSurface/`~~ | ~~屋根面視認性向上ツール~~ | | |
+| 2 | `./tools/SuperResolution/WallSurface/` | 壁面視認性向上ツール | （要ドキュメント作成） | |
+| 3 | `./tools/DeblurGANv2` | テクスチャ鮮明化ツール | [実行フロー](./docs/tutorials/tools/DeblurGANv2/README.md) | |
+| 4 | `./tools/UnsharpMask/` | テクスチャシャープ化ツール | [実行フロー](./docs/tutorials/tools/UnsharpMask/README.md) | |
+| 5 | `./tools/Real-ESRGAN/` | テクスチャ解像度向上ツール | [実行フロー](./docs/tutorials/tools/Real-ESRGAN/README.md) | |
+| - | ~~`./tools/Atlas_Prot/`~~ | ~~テクスチャアトラス化ツール~~ | （要ドキュメント作成） | バグが多すぎて、使用中止 |
 
 
 ## [デバッグモードの使い方](./docs/tutorials/debug-mode/README.md)
@@ -90,6 +90,12 @@
 - 「複雑屋根の建物の3Dモデル生成」のコア
   - ２重屋根の建築物に対して壁を生成する処理ができてないため、再設計が必要
     - 「そこだけ修正」は不可能
+
+## 用再開発
+### ${\text{\color{red}テクスチャアトラス化ツール}}$
+- 一部のテキストファイルが処理されていない
+- obj ファイルがある場合、obj ファイルの中にあるテクスチャ座標の変更プロセスがない
+- コードが汚すぎて分析できない
 
 ## 利用技術
 

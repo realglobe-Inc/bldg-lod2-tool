@@ -46,10 +46,10 @@ git clone --recurse-submodules https://github.com/realglobe-Inc/bldg-lod2-tool
   |`./tools/SuperResolution/RoofSurface`  |屋根面視認性向上ツール|不要になった|
   |`./`                                   |LOD2建築物モデル自動作成ツール||
   |`./tools/SuperResolution/WallSurface`  |壁面視認性向上ツール||
-  |`./tools/DeblurGANv2`                  |テクスチャ鮮明化ツール|
-  |`./tools/UnsharpMask`                  |テクスチャシャープ化ツール|
-  |`./tools/Real-ESRGAN`                  |テクスチャ解像度向上ツール|
-  |`./tools/Atlas_Prot`                   |テクスチャアトラス化ツール|
+  |`./tools/DeblurGANv2`                  |テクスチャ鮮明化ツール||
+  |`./tools/UnsharpMask`                  |テクスチャシャープ化ツール||
+  |`./tools/Real-ESRGAN`                  |テクスチャ解像度向上ツール||
+  |`./tools/Atlas_Prot`                   |テクスチャアトラス化ツール| バグが多すぎて、使用中止 |
 
 
 - 仮想環境の開始
