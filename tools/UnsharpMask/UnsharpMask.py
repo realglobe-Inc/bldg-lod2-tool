@@ -21,9 +21,29 @@ def sorted_glob(patterns):
 
 
 def main(input_dir: str, out_dir: str, input_format: str, output_format: str):
-    img_patterns = [
-        os.path.join(fix_relative_path(input_dir), "**", f"*.{input_format}")
-    ]
+    # Build case-insensitive glob patterns based on input format
+    fmt = input_format.lower()
+    resolved_input_dir = fix_relative_path(input_dir)
+    if fmt == 'all':
+        img_patterns = [
+            os.path.join(resolved_input_dir, '**', '*.[jJ][pP][gG]'),
+            os.path.join(resolved_input_dir, '**', '*.[jJ][pP][eE][gG]'),
+            os.path.join(resolved_input_dir, '**', '*.[pP][nN][gG]'),
+        ]
+    elif fmt in ('jpg', 'jpeg'):
+        img_patterns = [
+            os.path.join(resolved_input_dir, '**', '*.[jJ][pP][gG]'),
+            os.path.join(resolved_input_dir, '**', '*.[jJ][pP][eE][gG]'),
+        ]
+    elif fmt == 'png':
+        img_patterns = [
+            os.path.join(resolved_input_dir, '**', '*.[pP][nN][gG]'),
+        ]
+    else:
+        # Fallback: use specified format as-is (case-sensitive)
+        img_patterns = [
+            os.path.join(resolved_input_dir, '**', f'*.{input_format}'),
+        ]
     imgs = sorted_glob(img_patterns)
     os.makedirs(out_dir, exist_ok=True)
 
@@ -66,7 +86,7 @@ if __name__ == "__main__":
     )
     parser.add_argument("-o", "--output", type=str, required=True, help="Output folder")
     parser.add_argument(
-        "--input-format", type=str, default="png", help="Input image extension"
+        "--input-format", type=str, default="all", help="Input image extension: all | jpg | jpeg | png"
     )
     parser.add_argument(
         "--output-format", type=str, default="png", help="Output image extension"
