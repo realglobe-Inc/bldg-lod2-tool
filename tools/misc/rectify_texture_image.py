@@ -168,6 +168,17 @@ def calc_width_and_height(
 def calc_offsets(
     image_sizes: [tuple[int, int]],
 ) -> tuple[tuple[int, int], list[tuple[int, int]]]:
+    # 画像が0枚の場合
+    if len(image_sizes) == 0:
+        return (0, 0), []
+
+    # 画像が1枚の場合
+    if len(image_sizes) == 1:
+        w, h = image_sizes[0]
+        width = 2 ** math.ceil(math.log2(w)) if w > 0 else 1
+        height = 2 ** math.ceil(math.log2(h)) if h > 0 else 1
+        return (width, height), [(0, 0)]
+
     # # 横に長い順
     # indices = sorted(range(len(image_sizes)), key=lambda i: image_sizes[i][0], reverse=True)
     # そのまま
@@ -377,6 +388,16 @@ def rectify_images(
 
     # 面画像の配置を計算
     image_sizes = [image.shape[:2][::-1] for image in rectified_images]
+
+    # テクスチャ画像が0枚の場合はスキップ
+    if len(image_sizes) == 0:
+        print(f"Warning: No texture images for {bldg_id}, skipping")
+        return []
+
+    # テクスチャ画像が1枚の場合
+    if len(image_sizes) == 1:
+        print(f"Warning: Only 1 texture image for {bldg_id}")
+
     (texture_width, texture_height), offsets = calc_offsets(image_sizes)
 
     combined_image = np.full((texture_height, texture_width, 3), 255, dtype=np.uint8)
@@ -481,8 +502,7 @@ def process(
                         print(f"Processing {area_label}/{obj_name}")
 
                     bldg_id = obj_name.removesuffix(".obj")
-                    bldg_ids.append(bldg_id)
-                    face_vertices_list_map[bldg_id] = rectify_images(
+                    result = rectify_images(
                         input_dir,
                         area_id,
                         bldg_id,
@@ -490,6 +510,10 @@ def process(
                         output_format,
                         pixel_per_meter,
                     )
+                    # テクスチャ画像がある場合のみMTL/GMLに追加
+                    if result:
+                        bldg_ids.append(bldg_id)
+                        face_vertices_list_map[bldg_id] = result
                     pbar.update(1)
                 pbar.close()
 

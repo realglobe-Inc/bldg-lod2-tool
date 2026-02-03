@@ -456,7 +456,12 @@ if __name__ == "__main__":
                 if is_processed:
                     processed_count += 1
 
-            assert processed_count > 0
+            # 処理対象が0件の場合はスキップして次のGMLへ
+            if processed_count == 0:
+                print(
+                    f"Warning: 処理対象のテクスチャ画像が見つかりませんでした: {city_gml_path.name}"
+                )
+                continue
 
             for texture_path, is_processed in texture_check_list.items():
                 if not is_processed:

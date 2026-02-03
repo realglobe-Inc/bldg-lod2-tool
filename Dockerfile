@@ -56,13 +56,13 @@ RUN python -m venv "$(basename $PWD)" && \
 # 学習済みモデルのダウンロード（ファイルがない場合のみ）
 RUN mkdir -p src/createmodel/data && \
     test -f src/createmodel/data/classifier_parameter.pkl || \
-    wget 'https://github.com/realglobe-Inc/bldg-lod2-tool/releases/download/PretrainedModels-1.0/classifier_parameter.pkl' \
+    wget -q 'https://github.com/realglobe-Inc/bldg-lod2-tool/releases/download/PretrainedModels-1.0/classifier_parameter.pkl' \
       -O src/createmodel/data/classifier_parameter.pkl && \
     test -f src/createmodel/data/roof_edge_detection_parameter.pth || \
-    wget 'https://github.com/realglobe-Inc/bldg-lod2-tool/releases/download/PretrainedModels-1.0/roof_edge_detection_parameter.pth' \
+    wget -q 'https://github.com/realglobe-Inc/bldg-lod2-tool/releases/download/PretrainedModels-1.0/roof_edge_detection_parameter.pth' \
       -O src/createmodel/data/roof_edge_detection_parameter.pth && \
     test -f src/createmodel/data/balcony_segmentation_parameter.pkl || \
-    wget 'https://github.com/realglobe-Inc/bldg-lod2-tool/releases/download/PretrainedModels-1.0/balcony_segmentation_parameter.pkl' \
+    wget -q 'https://github.com/realglobe-Inc/bldg-lod2-tool/releases/download/PretrainedModels-1.0/balcony_segmentation_parameter.pkl' \
       -O src/createmodel/data/balcony_segmentation_parameter.pkl
 
 
@@ -85,7 +85,7 @@ RUN python -m venv "$(basename $PWD)" && \
 
 # 学習済みモデルのダウンロード（ファイルがない場合のみ）
 RUN test -f checkpoint/latest_net_G_A.pth || \
-    wget 'https://github.com/realglobe-Inc/pytorch-CycleGAN-and-pix2pix/releases/download/bldg-lod2-tool-v2.0.0/latest_net_G_A.pth' \
+    wget -q 'https://github.com/realglobe-Inc/pytorch-CycleGAN-and-pix2pix/releases/download/bldg-lod2-tool-v2.0.0/latest_net_G_A.pth' \
       -O checkpoint/latest_net_G_A.pth
 
 
@@ -109,10 +109,10 @@ RUN python -m venv "$(basename $PWD)" && \
 # 学習済みモデルのダウンロード（ファイルがない場合のみ）
 RUN mkdir -p "${HOME}/.cache/torch/hub/checkpoints" && \
     test -f "${HOME}/.cache/torch/hub/checkpoints/inceptionresnetv2-520b38e4.pth" || \
-    wget 'https://github.com/realglobe-Inc/DeblurGANv2/releases/download/v1.0.0/inceptionresnetv2-520b38e4.pth' \
+    wget -q 'https://github.com/realglobe-Inc/DeblurGANv2/releases/download/v1.0.0/inceptionresnetv2-520b38e4.pth' \
       -O "${HOME}/.cache/torch/hub/checkpoints/inceptionresnetv2-520b38e4.pth" && \
     test -f checkpoints/fpn_inception.h5 || \
-    wget 'https://github.com/realglobe-Inc/DeblurGANv2/releases/download/v1.0.0/fpn_inception.h5' \
+    wget -q 'https://github.com/realglobe-Inc/DeblurGANv2/releases/download/v1.0.0/fpn_inception.h5' \
       -O checkpoints/fpn_inception.h5
 
 
@@ -145,7 +145,7 @@ RUN python -m venv "$(basename $PWD)" && \
 
 # 学習済みモデルのダウンロード（ファイルがない場合のみ）
 RUN test weights/RealESRGAN_x4plus.pth || \
-    wget https://github.com/xinntao/Real-ESRGAN/releases/download/v0.1.0/RealESRGAN_x4plus.pth \
+    wget -q https://github.com/xinntao/Real-ESRGAN/releases/download/v0.1.0/RealESRGAN_x4plus.pth \
       -O weights/RealESRGAN_x4plus.pth
 
 

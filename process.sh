@@ -140,6 +140,32 @@ if ! "${skip_bldg_lod2_tool}"; then
     cp -rL "${output_bldg_lod2_tool_path}" "${output_result_path}"
 
     echo "最終結果 : ${output_result_path}"
+
+    mv "${output_result_path}" ./output
+
+    output_gml=${OUTPUT_GML:-"false"}
+    output_obj=${OUTPUT_OBJ:-"false"}
+    output_tex=${OUTPUT_TEX:-"false"}
+
+    if [ "$output_gml" = "false" ]; then
+      rm -f output/*.gml
+    fi
+
+    if [ "$output_obj" = "false" ]; then
+      rm -fr output/obj
+    fi
+
+    if [ "$output_tex" = "false" ]; then
+      rm -rf output/*_appearance
+    fi
+
+    zip -r /opt/ml/processing/output/result.zip ./output
+
+    # デバッグ用に全ファイルをzip化
+    zip -r /opt/ml/processing/output/all.zip "${output_dir}"
+
+    touch /opt/ml/processing/output/job_completed.txt
+
     exit 0
   fi
 elif [ -n "${input_dir}" ]; then
@@ -334,3 +360,28 @@ output_path="${output_dir}/output_result"
 copy_misc "${output_deblurgan_path}" "${output_wall_path2}" "${output_path}" jpg
 
 echo "最終結果 : ${output_path}"
+
+mv "${output_path}" ./output
+
+output_gml=${OUTPUT_GML:-"false"}
+output_obj=${OUTPUT_OBJ:-"false"}
+output_tex=${OUTPUT_TEX:-"false"}
+
+if [ "$output_gml" = "false" ]; then
+  rm -f output/*.gml
+fi
+
+if [ "$output_obj" = "false" ]; then
+  rm -fr output/obj
+fi
+
+if [ "$output_tex" = "false" ]; then
+  rm -rf output/*_appearance
+fi
+
+zip -r /opt/ml/processing/output/result.zip ./output
+
+# デバッグ用に全ファイルをzip化
+zip -r /opt/ml/processing/output/all.zip "${output_dir}"
+
+touch /opt/ml/processing/output/job_completed.txt
